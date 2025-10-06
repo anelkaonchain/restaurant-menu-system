@@ -1,0 +1,16 @@
+{
+  "name": "restaurant-menu-system",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "wp-scripts build src/admin.js src/categories.js src/orders.js src/qrcodes.js src/settings.js src/view-menu.js --output-path=build",
+    "start": "wp-scripts start src/admin.js --output-path=build"
+
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^27.0.0"
+  }
+}
