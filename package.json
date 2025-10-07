@@ -2,7 +2,7 @@
   "name": "restaurant-menu-system",
   "version": "1.0.0",
   "scripts": {
-    "build": "wp-scripts build src/admin.js src/categories.js src/orders.js src/qrcodes.js src/settings.js src/view-menu.js --output-path=build",
+    "build": "wp-scripts build src/admin.js src/categories.js src/orders.js src/qrcodes.js src/settings.js src/view-menu.js src/reports.js src/stock.js --output-path=build",
     "start": "wp-scripts start src/admin.js --output-path=build"
 
   },

@@ -135,6 +135,20 @@ class Restaurant_Menu_System {
             resolved_at datetime,
             PRIMARY KEY  (id)
         ) $charset_collate;";
+        $stock_table = $wpdb->prefix . 'rms_stock';
+        $sql_stock = "CREATE TABLE $stock_table (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            item_name varchar(200) NOT NULL,
+            current_stock decimal(10,2) NOT NULL,
+            min_stock decimal(10,2) NOT NULL,
+            unit varchar(20) DEFAULT 'kg' NOT NULL,
+            supplier varchar(200),
+            last_order_date date,
+            notes text,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+            PRIMARY KEY  (id)
+        ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_tables);
@@ -143,6 +157,7 @@ class Restaurant_Menu_System {
         dbDelta($sql_category_translations);
         dbDelta($sql_settings);
         dbDelta($sql_calls);
+        dbDelta($sql_stock);
         
         $default_lang = $wpdb->get_var("SELECT setting_value FROM {$wpdb->prefix}rms_settings WHERE setting_key = 'default_language'");
         if (!$default_lang) {
@@ -333,6 +348,26 @@ class Restaurant_Menu_System {
                 array($this, 'render_settings_page')
             );
         }
+        if (current_user_can('view_restaurant_reports')) {
+            add_submenu_page(
+                'restaurant-menu',
+                'Reports',
+                'Reports',
+                'view_restaurant_reports',
+                'rms-reports',
+                array($this, 'render_reports_page')
+            );
+        }
+        if (current_user_can('manage_restaurant_menu')) {
+            add_submenu_page(
+                'restaurant-menu',
+                'Stock Management',
+                'Stock',
+                'manage_restaurant_menu',
+                'rms-stock',
+                array($this, 'render_stock_page')
+            );
+        }
     }
     
     public function render_view_menu_page() {
@@ -357,6 +392,12 @@ class Restaurant_Menu_System {
     
     public function render_settings_page() {
         echo '<div class="wrap"><div id="rms-settings-root"></div></div>';
+    }
+    public function render_reports_page() {
+        echo '<div class="wrap"><div id="rms-reports-root"></div></div>';
+    }
+    public function render_stock_page() {
+        echo '<div class="wrap"><div id="rms-stock-root"></div></div>';
     }
     public function enqueue_admin_scripts($hook) {
         if ('toplevel_page_restaurant-menu' === $hook) {
@@ -457,6 +498,49 @@ class Restaurant_Menu_System {
                 'nonce' => wp_create_nonce('rms_nonce'),
             ));
         }
+        if ('restaurant-menu_page_rms-settings' === $hook) {
+            wp_enqueue_script(
+                'rms-settings',
+                RMS_URL . 'build/settings.js',
+                array('wp-element'),
+                RMS_VERSION,
+                true
+            );
+            
+            wp_localize_script('rms-settings', 'rmsAdmin', array(
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('rms_nonce'),
+            ));
+        }
+        if ('restaurant-menu_page_rms-reports' === $hook) {
+            wp_enqueue_script(
+                'rms-reports',
+                RMS_URL . 'build/reports.js',
+                array('wp-element'),
+                RMS_VERSION,
+                true
+            );
+            
+            wp_localize_script('rms-reports', 'rmsAdmin', array(
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('rms_nonce'),
+            ));
+        }
+        // Stock için script yükleme
+        if ('restaurant-menu_page_rms-stock' === $hook) {
+            wp_enqueue_script(
+                'rms-stock',
+                RMS_URL . 'build/stock.js',
+                array('wp-element'),
+                RMS_VERSION,
+                true
+            );
+            
+            wp_localize_script('rms-stock', 'rmsAdmin', array(
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('rms_nonce'),
+            ));
+        }
     }
     
     private function register_ajax_handlers() {
@@ -492,6 +576,9 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_resolve_call', array($this, 'ajax_resolve_call'));
         add_action('wp_ajax_rms_get_order_status', array($this, 'ajax_get_order_status'));
         add_action('wp_ajax_nopriv_rms_get_order_status', array($this, 'ajax_get_order_status'));
+        add_action('wp_ajax_rms_get_stocks', array($this, 'ajax_get_stocks'));
+        add_action('wp_ajax_rms_save_stock', array($this, 'ajax_save_stock'));
+        add_action('wp_ajax_rms_delete_stock', array($this, 'ajax_delete_stock'));
     }
     
     public function ajax_get_current_user() {
@@ -1237,6 +1324,88 @@ class Restaurant_Menu_System {
         );
         
         wp_send_json_success();
+    }
+    
+    public function ajax_get_stocks() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $stock_table = $wpdb->prefix . 'rms_stock';
+        
+        $stocks = $wpdb->get_results(
+            "SELECT * FROM $stock_table ORDER BY item_name ASC",
+            ARRAY_A
+        );
+        
+        wp_send_json_success($stocks ? $stocks : array());
+    }
+    
+    public function ajax_save_stock() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $stock_table = $wpdb->prefix . 'rms_stock';
+        
+        $data = array(
+            'item_name' => sanitize_text_field($_POST['item_name']),
+            'current_stock' => floatval($_POST['current_stock']),
+            'min_stock' => floatval($_POST['min_stock']),
+            'unit' => sanitize_text_field($_POST['unit']),
+            'supplier' => !empty($_POST['supplier']) ? sanitize_text_field($_POST['supplier']) : '',
+            'last_order_date' => !empty($_POST['last_order_date']) ? sanitize_text_field($_POST['last_order_date']) : null,
+            'notes' => !empty($_POST['notes']) ? sanitize_textarea_field($_POST['notes']) : ''
+        );
+        
+        if (!empty($_POST['id'])) {
+            $result = $wpdb->update(
+                $stock_table,
+                $data,
+                array('id' => intval($_POST['id'])),
+                array('%s', '%f', '%f', '%s', '%s', '%s', '%s'),
+                array('%d')
+            );
+            
+            // Update her zaman 0 veya 1 döner, false kontrolü yanlış
+            if ($result !== false) {
+                wp_send_json_success(array('message' => 'Stock updated'));
+            } else {
+                wp_send_json_error('Database update error: ' . $wpdb->last_error);
+            }
+        } else {
+            $result = $wpdb->insert(
+                $stock_table,
+                $data,
+                array('%s', '%f', '%f', '%s', '%s', '%s', '%s')
+            );
+            
+            if ($result) {
+                wp_send_json_success(array('message' => 'Stock created', 'id' => $wpdb->insert_id));
+            } else {
+                wp_send_json_error('Database insert error: ' . $wpdb->last_error);
+            }
+        }
+    }
+    
+    public function ajax_delete_stock() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $stock_table = $wpdb->prefix . 'rms_stock';
+        
+        $result = $wpdb->delete(
+            $stock_table,
+            array('id' => intval($_POST['id'])),
+            array('%d')
+        );
+        
+        if ($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error();
+        }
     }
 }
 

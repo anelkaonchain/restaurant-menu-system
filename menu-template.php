@@ -1030,36 +1030,52 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             checkStatus();
         }
 
-        function updateOrderStatus(status) {
-            // Reset all statuses
-            document.querySelectorAll('.status-step').forEach(el => {
-                el.className = 'status-step pending';
-            });
+        let lastNotifiedStatus = null; // Yeni değişken ekleyin (script başına)
 
-            // Update based on current status
-            if (status === 'pending') {
-                document.getElementById('statusPending').className = 'status-step active';
-            } else if (status === 'preparing') {
-                document.getElementById('statusPending').className = 'status-step completed';
-                document.getElementById('statusPreparing').className = 'status-step active';
-                showNotification('Your order is being prepared!', 'info');
-            } else if (status === 'ready') {
-                document.getElementById('statusPending').className = 'status-step completed';
-                document.getElementById('statusPreparing').className = 'status-step completed';
-                document.getElementById('statusReady').className = 'status-step active';
-                showNotification('Your order is ready!', 'success');
-            } else if (status === 'delivered') {
-                document.getElementById('statusPending').className = 'status-step completed';
-                document.getElementById('statusPreparing').className = 'status-step completed';
-                document.getElementById('statusReady').className = 'status-step completed';
-                document.getElementById('statusDelivered').className = 'status-step active';
-                showNotification('Enjoy your meal!', 'success');
-                localStorage.removeItem('currentOrderId_' + tableNumber);
-                setTimeout(() => {
-                    document.getElementById('orderStatusTracker').classList.remove('active');
-                }, 5000);
-            }
+function updateOrderStatus(status) {
+    // Reset all statuses
+    document.querySelectorAll('.status-step').forEach(el => {
+        el.className = 'status-step pending';
+    });
+
+    // Update based on current status
+    if (status === 'pending') {
+        document.getElementById('statusPending').className = 'status-step active';
+    } else if (status === 'preparing') {
+        document.getElementById('statusPending').className = 'status-step completed';
+        document.getElementById('statusPreparing').className = 'status-step active';
+        
+        // Sadece durum değiştiyse bildirim göster
+        if (lastNotifiedStatus !== 'preparing') {
+            showNotification('Your order is being prepared!', 'info');
+            lastNotifiedStatus = 'preparing';
         }
+    } else if (status === 'ready') {
+        document.getElementById('statusPending').className = 'status-step completed';
+        document.getElementById('statusPreparing').className = 'status-step completed';
+        document.getElementById('statusReady').className = 'status-step active';
+        
+        if (lastNotifiedStatus !== 'ready') {
+            showNotification('Your order is ready!', 'success');
+            lastNotifiedStatus = 'ready';
+        }
+    } else if (status === 'delivered') {
+        document.getElementById('statusPending').className = 'status-step completed';
+        document.getElementById('statusPreparing').className = 'status-step completed';
+        document.getElementById('statusReady').className = 'status-step completed';
+        document.getElementById('statusDelivered').className = 'status-step active';
+        
+        if (lastNotifiedStatus !== 'delivered') {
+            showNotification('Enjoy your meal!', 'success');
+            lastNotifiedStatus = 'delivered';
+        }
+        
+        localStorage.removeItem('currentOrderId_' + tableNumber);
+        setTimeout(() => {
+            document.getElementById('orderStatusTracker').classList.remove('active');
+        }, 5000);
+    }
+}
     </script>
 </body>
 </html>

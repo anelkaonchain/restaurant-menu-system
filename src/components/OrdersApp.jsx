@@ -1,144 +1,146 @@
-import { useState, useEffect } from '@wordpress/element';
-import { useTranslation } from '../hooks/useTranslation';
+import React, { useState, useEffect } from 'react';
+import useTranslation from '../hooks/useTranslation.js';
 
 function OrdersApp() {
-    const { t } = useTranslation();
+    const { t, language } = useTranslation();
     const [orders, setOrders] = useState([]);
-    const [calls, setCalls] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [activeFilter, setActiveFilter] = useState('pending');
-    const [previousOrderCount, setPreviousOrderCount] = useState(null);
-    const [previousCallCount, setPreviousCallCount] = useState(null);
-    const [newOrderAlert, setNewOrderAlert] = useState(false);
-    const [newCallAlert, setNewCallAlert] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('pending');
 
     useEffect(() => {
-        loadOrders();
-        loadCalls();
-        
-        const interval = setInterval(() => {
-            loadOrders(true);
-            loadCalls(true);
-        }, 10000);
-        
+        fetchOrders();
+        const interval = setInterval(fetchOrders, 5000);
         return () => clearInterval(interval);
     }, []);
 
+    const fetchOrders = async () => {
+        try {
+            const formData = new FormData();
+            formData.append('action', 'rms_get_orders');
+            formData.append('nonce', rmsAdmin.nonce);
+
+            const response = await fetch(rmsAdmin.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                const oldOrders = orders;
+                const newOrders = data.data;
+                
+                setOrders(newOrders);
+                
+                // Sadece yeni "pending" siparişler için bildirim göster
+                if (oldOrders.length > 0) {
+                    const newPendingOrders = newOrders.filter(newOrder => 
+                        newOrder.status === 'pending' && 
+                        !oldOrders.some(oldOrder => oldOrder.id === newOrder.id)
+                    );
+                    
+                    if (newPendingOrders.length > 0) {
+                        playNotificationSound();
+                        showNotification(newPendingOrders.length);
+                    }
+                }
+            }
+            setLoading(false);
+        } catch (error) {
+            console.error('Error fetching orders:', error);
+            setLoading(false);
+        }
+    };
+
     const playNotificationSound = () => {
-        try {
-            // Assets klasöründeki MP3 dosyasını kullan
-            const audio = new Audio(window.rmsAdmin.pluginUrl + 'assets/notification.mp3');
-            audio.volume = 0.5;
-            audio.play().catch(e => console.log('Sound play failed:', e));
-        } catch (e) {
-            console.log('Audio error:', e);
-        }
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZQQ0OXrXp7KhWFApGn+Dyu20h');
+        audio.play().catch(e => console.log('Ses çalınamadı:', e));
     };
 
-    const loadOrders = async (silent = false) => {
-        if (!silent) setLoading(true);
+    const showNotification = (count) => {
+        // Tarayıcı bildirimi göster
+        const notificationDiv = document.createElement('div');
+        notificationDiv.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8A5C 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 24px rgba(255, 107, 53, 0.4);
+            z-index: 10000;
+            font-size: 16px;
+            font-weight: 700;
+            animation: slideInRight 0.5s ease-out, pulse 2s infinite;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 350px;
+        `;
         
-        const formData = new FormData();
-        formData.append('action', 'rms_get_orders');
-        formData.append('nonce', window.rmsAdmin.nonce);
-
-        try {
-            const response = await fetch(window.rmsAdmin.ajaxUrl, {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                const ordersWithItems = data.data.map(order => ({
-                    ...order,
-                    items: Array.isArray(order.items) ? order.items : []
-                }));
-
-                const pendingOrders = ordersWithItems.filter(o => o.status === 'pending');
-                const currentPendingCount = pendingOrders.length;
-                
-                if (silent && previousOrderCount !== null && !newOrderAlert && currentPendingCount > previousOrderCount) {
-                    playNotificationSound();
-                    setNewOrderAlert(true);
+        notificationDiv.innerHTML = `
+            <span style="font-size: 28px;">🔔</span>
+            <div>
+                <div style="font-size: 18px; margin-bottom: 4px;">
+                    ${count} ${t('orders.pending')} ${t('orders.order')}!
+                </div>
+                <div style="font-size: 13px; opacity: 0.9;">
+                    ${t('orders.start_preparing')}
+                </div>
+            </div>
+        `;
+        
+        // Animasyon stilleri
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
                 }
-                
-                setPreviousOrderCount(currentPendingCount);
-                setOrders(ordersWithItems);
-            }
-        } catch (error) {
-            console.error('Error loading orders:', error);
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    };
-
-    const loadCalls = async (silent = false) => {
-        const formData = new FormData();
-        formData.append('action', 'rms_get_calls');
-        formData.append('nonce', window.rmsAdmin.nonce);
-
-        try {
-            const response = await fetch(window.rmsAdmin.ajaxUrl, {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                const pendingCalls = data.data.filter(c => c.status === 'pending');
-                const currentCallCount = pendingCalls.length;
-                
-                if (silent && previousCallCount !== null && !newCallAlert && currentCallCount > previousCallCount) {
-                    playNotificationSound();
-                    setNewCallAlert(true);
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
                 }
-                
-                setPreviousCallCount(currentCallCount);
-                setCalls(data.data);
             }
-        } catch (error) {
-            console.error('Error loading calls:', error);
-        }
-    };
-
-    const resolveCall = async (callId) => {
-        const formData = new FormData();
-        formData.append('action', 'rms_resolve_call');
-        formData.append('nonce', window.rmsAdmin.nonce);
-        formData.append('call_id', callId);
-
-        try {
-            const response = await fetch(window.rmsAdmin.ajaxUrl, {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                loadCalls();
+            @keyframes pulse {
+                0%, 100% {
+                    transform: scale(1);
+                }
+                50% {
+                    transform: scale(1.05);
+                }
             }
-        } catch (error) {
-            console.error('Error resolving call:', error);
-        }
+        `;
+        document.head.appendChild(style);
+        
+        document.body.appendChild(notificationDiv);
+        
+        // 5 saniye sonra bildirimi kaldır
+        setTimeout(() => {
+            notificationDiv.style.animation = 'slideInRight 0.5s ease-out reverse';
+            setTimeout(() => {
+                notificationDiv.remove();
+            }, 500);
+        }, 5000);
     };
 
     const updateOrderStatus = async (orderId, newStatus) => {
-        const formData = new FormData();
-        formData.append('action', 'rms_update_order_status');
-        formData.append('nonce', window.rmsAdmin.nonce);
-        formData.append('order_id', orderId);
-        formData.append('status', newStatus);
-
         try {
-            const response = await fetch(window.rmsAdmin.ajaxUrl, {
+            const formData = new FormData();
+            formData.append('action', 'rms_update_order_status');
+            formData.append('nonce', rmsAdmin.nonce);
+            formData.append('id', orderId);
+            formData.append('status', newStatus);
+
+            const response = await fetch(rmsAdmin.ajaxUrl, {
                 method: 'POST',
                 body: formData
             });
-            const data = await response.json();
 
+            const data = await response.json();
             if (data.success) {
-                loadOrders();
+                fetchOrders();
             }
         } catch (error) {
             console.error('Error updating order:', error);
@@ -146,22 +148,22 @@ function OrdersApp() {
     };
 
     const deleteOrder = async (orderId) => {
-        if (!confirm(t('orders.delete_confirm'))) return;
-
-        const formData = new FormData();
-        formData.append('action', 'rms_delete_order');
-        formData.append('nonce', window.rmsAdmin.nonce);
-        formData.append('order_id', orderId);
+        if (!confirm(t('orders.confirm_delete'))) return;
 
         try {
-            const response = await fetch(window.rmsAdmin.ajaxUrl, {
+            const formData = new FormData();
+            formData.append('action', 'rms_delete_order');
+            formData.append('nonce', rmsAdmin.nonce);
+            formData.append('id', orderId);
+
+            const response = await fetch(rmsAdmin.ajaxUrl, {
                 method: 'POST',
                 body: formData
             });
-            const data = await response.json();
 
+            const data = await response.json();
             if (data.success) {
-                loadOrders();
+                fetchOrders();
             }
         } catch (error) {
             console.error('Error deleting order:', error);
@@ -170,261 +172,525 @@ function OrdersApp() {
 
     const getStatusColor = (status) => {
         const colors = {
-            pending: '#fbbf24',
-            preparing: '#3b82f6',
-            ready: '#10b981',
-            completed: '#6b7280',
-            cancelled: '#ef4444'
+            pending: '#FF6B35',
+            preparing: '#004E89',
+            ready: '#06A77D',
+            delivered: '#6C757D',
+            cancelled: '#DC3545'
         };
-        return colors[status] || '#6b7280';
+        return colors[status] || '#6C757D';
     };
 
-    const filteredOrders = activeFilter === 'all' 
-        ? orders 
-        : orders.filter(order => order.status === activeFilter);
+    const getStatusIcon = (status) => {
+        const icons = {
+            pending: '🕐',
+            preparing: '👨‍🍳',
+            ready: '✅',
+            delivered: '🎉',
+            cancelled: '❌'
+        };
+        return icons[status] || '📋';
+    };
 
-    const pendingCalls = calls.filter(call => call.status === 'pending');
+    const getNextStatus = (currentStatus) => {
+        const statusFlow = {
+            pending: 'preparing',
+            preparing: 'ready',
+            ready: 'delivered'
+        };
+        return statusFlow[currentStatus];
+    };
+
+    const getNextStatusLabel = (currentStatus) => {
+        const labels = {
+            pending: t('orders.start_preparing'),
+            preparing: t('orders.mark_ready'),
+            ready: t('orders.mark_delivered')
+        };
+        return labels[currentStatus];
+    };
+
+    const filteredOrders = activeTab === 'all' 
+        ? orders 
+        : orders.filter(order => order.status === activeTab);
+
+    if (loading) {
+        return (
+            <div style={{ 
+                padding: '60px 20px', 
+                textAlign: 'center',
+                fontSize: '18px',
+                color: '#6C757D'
+            }}>
+                <div style={{
+                    display: 'inline-block',
+                    width: '50px',
+                    height: '50px',
+                    border: '5px solid #f3f3f3',
+                    borderTop: '5px solid #004E89',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    marginBottom: '20px'
+                }}></div>
+                <div>{t('common.loading')}</div>
+                <style>{`
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                `}</style>
+            </div>
+        );
+    }
 
     return (
-        <div style={{ maxWidth: '1400px', margin: '20px auto', padding: '0 20px' }}>
-            {newOrderAlert && (
-                <div style={{
-                    position: 'fixed',
-                    top: '20px',
-                    right: '20px',
-                    background: '#27ae60',
-                    color: 'white',
-                    padding: '20px 30px',
-                    borderRadius: '10px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                    zIndex: 9999
+        <div style={{ 
+            padding: '30px',
+            maxWidth: '1400px',
+            margin: '0 auto',
+            backgroundColor: '#F8F9FA',
+            minHeight: '100vh'
+        }}>
+            {/* Header */}
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '30px',
+                flexWrap: 'wrap',
+                gap: '15px'
+            }}>
+                <h1 style={{ 
+                    margin: 0,
+                    fontSize: '32px',
+                    fontWeight: '700',
+                    color: '#2C3E50',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
                 }}>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '10px' }}>
-                        🔔 {t('orders.new_order') || 'Yeni Sipariş!'}
-                    </div>
-                    <div style={{ fontSize: '14px', marginBottom: '15px' }}>
-                        {t('orders.new_order_arrived') || 'Yeni bir sipariş geldi'}
-                    </div>
-                    <button
-                        onClick={() => setNewOrderAlert(false)}
-                        style={{
-                            background: 'white',
-                            color: '#27ae60',
-                            border: 'none',
-                            padding: '8px 20px',
-                            borderRadius: '5px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                        }}
-                    >
-                        {t('common.ok') || 'Tamam'}
-                    </button>
-                </div>
-            )}
-
-            {newCallAlert && (
+                    📋 {t('orders.title')}
+                </h1>
                 <div style={{
-                    position: 'fixed',
-                    top: '20px',
-                    left: '20px',
-                    background: '#f59e0b',
+                    backgroundColor: '#004E89',
                     color: 'white',
-                    padding: '20px 30px',
+                    padding: '10px 20px',
                     borderRadius: '10px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                    zIndex: 9999
+                    fontWeight: '600',
+                    fontSize: '16px'
                 }}>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '10px' }}>
-                        🔔 Garson Çağrısı!
-                    </div>
-                    <div style={{ fontSize: '14px', marginBottom: '15px' }}>
-                        Bir masa garson çağırıyor
-                    </div>
-                    <button
-                        onClick={() => setNewCallAlert(false)}
-                        style={{
-                            background: 'white',
-                            color: '#f59e0b',
-                            border: 'none',
-                            padding: '8px 20px',
-                            borderRadius: '5px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                        }}
-                    >
-                        Tamam
-                    </button>
+                    {t('orders.total')}: {orders.length} {t('orders.order')}
                 </div>
-            )}
-
-            <h1 style={{ marginBottom: '30px' }}>{t('orders.title')}</h1>
-
-            {pendingCalls.length > 0 && (
-                <div style={{ marginBottom: '30px' }}>
-                    <h2 style={{ fontSize: '20px', marginBottom: '15px', color: '#f59e0b' }}>
-                        🔔 {t('orders.waiter_calls') || 'Garson Çağrıları'} ({pendingCalls.length})
-                    </h2>
-                    <div style={{ display: 'grid', gap: '15px' }}>
-                        {pendingCalls.map(call => (
-                            <div key={call.id} style={{
-                                background: '#fff3cd',
-                                padding: '15px 20px',
-                                borderRadius: '8px',
-                                borderLeft: '4px solid #f59e0b',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                            }}>
-                                <div>
-                                    <strong style={{ fontSize: '16px' }}>
-                                        {t('orders.table')} {call.table_number}
-                                    </strong>
-                                    <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '14px' }}>
-                                        {new Date(call.created_at).toLocaleString('tr-TR')}
-                                    </p>
-                                </div>
-                                <button
-                                    className="button button-primary"
-                                    onClick={() => resolveCall(call.id)}
-                                    style={{ background: '#f59e0b', borderColor: '#f59e0b' }}
-                                >
-                                    {t('orders.resolve') || 'Tamamlandı'}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {['all', 'pending', 'preparing', 'ready', 'completed', 'cancelled'].map(status => (
-                    <button
-                        key={status}
-                        onClick={() => setActiveFilter(status)}
-                        className="button"
-                        style={{
-                            background: activeFilter === status ? '#2271b1' : '#f0f0f1',
-                            color: activeFilter === status ? 'white' : '#2c3338',
-                            borderColor: activeFilter === status ? '#2271b1' : '#c3c4c7'
-                        }}
-                    >
-                        {t(`orders.${status}`)}
-                    </button>
-                ))}
             </div>
 
-            {loading ? (
-                <p>{t('common.loading')}</p>
-            ) : filteredOrders.length === 0 ? (
-                <p>{t('orders.no_orders')}</p>
-            ) : (
-                <div style={{ display: 'grid', gap: '20px' }}>
-                    {filteredOrders.map(order => (
-                        <div key={order.id} style={{
-                            background: 'white',
-                            padding: '20px',
-                            borderRadius: '8px',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                            borderLeft: `4px solid ${getStatusColor(order.status)}`
-                        }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                                <div>
-                                    <h3 style={{ margin: '0 0 5px 0' }}>
-                                        {t('orders.order')} #{order.id} - {t('orders.table')} {order.table_number}
-                                    </h3>
-                                    <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-                                        {new Date(order.created_at).toLocaleString('tr-TR')}
-                                    </p>
-                                </div>
-                                <div style={{
-                                    padding: '5px 15px',
-                                    borderRadius: '20px',
-                                    background: getStatusColor(order.status),
-                                    color: 'white',
-                                    fontSize: '14px',
-                                    fontWeight: 'bold',
-                                    height: 'fit-content'
-                                }}>
-                                    {t(`orders.${order.status}`)}
-                                </div>
-                            </div>
-
-                            <div style={{ marginBottom: '15px' }}>
-                                <h4 style={{ margin: '0 0 10px 0' }}>{t('orders.items')}:</h4>
-                                <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                                    {order.items.map((item, idx) => (
-                                        <li key={idx}>
-                                            {item.quantity}x {item.name} - ${parseFloat(item.price).toFixed(2)}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-
-                            {order.notes && (
-                                <div style={{ marginBottom: '15px', padding: '10px', background: '#f9f9f9', borderRadius: '4px' }}>
-                                    <strong>{t('orders.notes')}:</strong> {order.notes}
-                                </div>
-                            )}
-
-                            <div style={{ 
-                                display: 'flex', 
-                                justifyContent: 'space-between', 
+            {/* Tabs */}
+            <div style={{ 
+                marginBottom: '30px', 
+                display: 'flex', 
+                gap: '12px', 
+                flexWrap: 'wrap',
+                backgroundColor: 'white',
+                padding: '15px',
+                borderRadius: '15px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+            }}>
+                {[
+                    { key: 'all', icon: '📊', color: '#004E89' },
+                    { key: 'pending', icon: '🕐', color: '#FF6B35' },
+                    { key: 'preparing', icon: '👨‍🍳', color: '#004E89' },
+                    { key: 'ready', icon: '✅', color: '#06A77D' },
+                    { key: 'delivered', icon: '🎉', color: '#6C757D' },
+                    { key: 'cancelled', icon: '❌', color: '#DC3545' }
+                ].map(tab => {
+                    const count = tab.key === 'all' 
+                        ? orders.length 
+                        : orders.filter(o => o.status === tab.key).length;
+                    const isActive = activeTab === tab.key;
+                    
+                    return (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            style={{
+                                padding: '12px 24px',
+                                backgroundColor: isActive ? tab.color : 'white',
+                                color: isActive ? 'white' : '#2C3E50',
+                                border: isActive ? 'none' : '2px solid #E9ECEF',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                fontSize: '15px',
+                                fontWeight: '600',
+                                transition: 'all 0.3s ease',
+                                display: 'flex',
                                 alignItems: 'center',
-                                paddingTop: '15px',
-                                borderTop: '1px solid #eee'
+                                gap: '8px',
+                                boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                                transform: isActive ? 'translateY(-2px)' : 'none'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (!isActive) {
+                                    e.target.style.backgroundColor = '#F8F9FA';
+                                    e.target.style.transform = 'translateY(-2px)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!isActive) {
+                                    e.target.style.backgroundColor = 'white';
+                                    e.target.style.transform = 'none';
+                                }
+                            }}
+                        >
+                            <span style={{ fontSize: '18px' }}>{tab.icon}</span>
+                            <span>{t(`orders.${tab.key}`)}</span>
+                            <span style={{
+                                backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : tab.color,
+                                color: isActive ? 'white' : 'white',
+                                padding: '2px 10px',
+                                borderRadius: '20px',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                minWidth: '28px',
+                                textAlign: 'center'
                             }}>
-                                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                                    {t('orders.total')}: ${parseFloat(order.total_amount).toFixed(2)}
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    {order.status === 'pending' && (
-                                        <button
-                                            className="button button-primary"
-                                            onClick={() => updateOrderStatus(order.id, 'preparing')}
-                                        >
-                                            {t('orders.start_preparing')}
-                                        </button>
-                                    )}
-                                    {order.status === 'preparing' && (
-                                        <button
-                                            className="button"
-                                            onClick={() => updateOrderStatus(order.id, 'ready')}
-                                            style={{ background: '#10b981', borderColor: '#10b981', color: 'white' }}
-                                        >
-                                            {t('orders.mark_ready')}
-                                        </button>
-                                    )}
-                                    {order.status === 'ready' && (
-                                        <button
-                                            className="button"
-                                            onClick={() => updateOrderStatus(order.id, 'completed')}
-                                            style={{ background: '#6b7280', borderColor: '#6b7280', color: 'white' }}
-                                        >
-                                            {t('orders.complete_order')}
-                                        </button>
-                                    )}
-                                    {order.status !== 'cancelled' && order.status !== 'completed' && (
-                                        <button
-                                            className="button"
-                                            onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                                            style={{ background: '#fff3cd', borderColor: '#f59e0b' }}
-                                        >
-                                            {t('orders.cancel')}
-                                        </button>
-                                    )}
-                                    <button
-                                        className="button button-link-delete"
-                                        onClick={() => deleteOrder(order.id)}
-                                        style={{ color: '#b32d2e' }}
+                                {count}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Orders Grid */}
+            <div style={{ display: 'grid', gap: '20px' }}>
+                {filteredOrders.length === 0 ? (
+                    <div style={{ 
+                        padding: '80px 40px', 
+                        textAlign: 'center', 
+                        background: 'white',
+                        borderRadius: '15px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                    }}>
+                        <div style={{ fontSize: '64px', marginBottom: '20px' }}>📭</div>
+                        <h3 style={{ color: '#6C757D', fontSize: '20px', fontWeight: '600' }}>
+                            {t('orders.no_orders')}
+                        </h3>
+                    </div>
+                ) : (
+                    filteredOrders.map(order => {
+                        const totalPrice = parseFloat(order.total_price) || 0;
+                        const statusColor = getStatusColor(order.status);
+                        
+                        return (
+                            <div
+                                key={order.id}
+                                style={{
+                                    backgroundColor: 'white',
+                                    borderRadius: '15px',
+                                    padding: '25px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                                    borderLeft: `6px solid ${statusColor}`,
+                                    transition: 'all 0.3s ease',
+                                    position: 'relative'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
+                                    e.currentTarget.style.transform = 'translateY(-4px)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                                    e.currentTarget.style.transform = 'none';
+                                }}
+                            >
+                                {/* Header */}
+                                <div style={{ 
+                                    display: 'flex', 
+                                    justifyContent: 'space-between', 
+                                    alignItems: 'flex-start',
+                                    marginBottom: '20px',
+                                    gap: '15px',
+                                    flexWrap: 'wrap'
+                                }}>
+                                    <div style={{ flex: 1, minWidth: '200px' }}>
+                                        <h3 style={{ 
+                                            margin: '0 0 8px 0', 
+                                            fontSize: '22px',
+                                            fontWeight: '700',
+                                            color: '#2C3E50'
+                                        }}>
+                                            {t('orders.order')} #{order.id}
+                                        </h3>
+                                        <div style={{ 
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '15px',
+                                            flexWrap: 'wrap'
+                                        }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                color: '#6C757D',
+                                                fontSize: '15px'
+                                            }}>
+                                                <span>🪑</span>
+                                                <span style={{ fontWeight: '600' }}>
+                                                    {t('orders.table')} {order.table_number}
+                                                </span>
+                                            </div>
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                color: '#6C757D',
+                                                fontSize: '14px'
+                                            }}>
+                                                <span>🕐</span>
+                                                <span>
+                                                    {new Date(order.created_at).toLocaleString(language === 'tr' ? 'tr-TR' : 'en-US')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div
+                                        style={{
+                                            padding: '10px 20px',
+                                            borderRadius: '25px',
+                                            backgroundColor: statusColor,
+                                            color: 'white',
+                                            fontWeight: '700',
+                                            fontSize: '15px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            boxShadow: `0 4px 12px ${statusColor}40`
+                                        }}
                                     >
-                                        {t('common.delete')}
-                                    </button>
+                                        <span style={{ fontSize: '18px' }}>{getStatusIcon(order.status)}</span>
+                                        <span>{t(`orders.${order.status}`)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Items */}
+                                <div style={{ 
+                                    marginBottom: '20px',
+                                    padding: '20px',
+                                    backgroundColor: '#F8F9FA',
+                                    borderRadius: '10px'
+                                }}>
+                                    <div style={{ 
+                                        fontWeight: '700', 
+                                        marginBottom: '12px',
+                                        color: '#2C3E50',
+                                        fontSize: '16px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <span>🍽️</span>
+                                        {t('orders.items')}:
+                                    </div>
+                                    <div style={{ display: 'grid', gap: '8px' }}>
+                                        {Array.isArray(order.items) && order.items.length > 0 ? (
+                                            order.items.map((item, index) => (
+                                                <div 
+                                                    key={index} 
+                                                    style={{ 
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        padding: '10px',
+                                                        backgroundColor: 'white',
+                                                        borderRadius: '8px',
+                                                        fontSize: '15px'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <span style={{
+                                                            backgroundColor: statusColor,
+                                                            color: 'white',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '6px',
+                                                            fontSize: '13px',
+                                                            fontWeight: '700',
+                                                            minWidth: '32px',
+                                                            textAlign: 'center'
+                                                        }}>
+                                                            {item.quantity}x
+                                                        </span>
+                                                        <span style={{ fontWeight: '600', color: '#2C3E50' }}>
+                                                            {item.name}
+                                                        </span>
+                                                    </div>
+                                                    <span style={{ 
+                                                        fontWeight: '700',
+                                                        color: '#06A77D',
+                                                        fontSize: '15px'
+                                                    }}>
+                                                        ${parseFloat(item.price).toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div style={{ color: '#6C757D', fontStyle: 'italic' }}>
+                                                No items
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Customer Name */}
+                                {order.customer_name && (
+                                    <div style={{ 
+                                        marginBottom: '15px',
+                                        padding: '12px',
+                                        backgroundColor: '#E7F3FF',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <span>👤</span>
+                                        <strong style={{ color: '#004E89' }}>{t('orders.customer_name')}:</strong>
+                                        <span style={{ color: '#2C3E50' }}>{order.customer_name}</span>
+                                    </div>
+                                )}
+
+                                {/* Notes */}
+                                {order.notes && (
+                                    <div style={{ 
+                                        marginBottom: '20px',
+                                        padding: '15px',
+                                        backgroundColor: '#FFF3CD',
+                                        borderLeft: '4px solid #FFC107',
+                                        borderRadius: '8px'
+                                    }}>
+                                        <div style={{ 
+                                            fontWeight: '700',
+                                            marginBottom: '6px',
+                                            color: '#856404',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}>
+                                            <span>📝</span>
+                                            {t('orders.notes')}:
+                                        </div>
+                                        <div style={{ color: '#856404', fontSize: '14px' }}>
+                                            {order.notes}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Total & Actions */}
+                                <div style={{ 
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    paddingTop: '20px',
+                                    borderTop: '2px solid #E9ECEF',
+                                    gap: '15px',
+                                    flexWrap: 'wrap'
+                                }}>
+                                    <div style={{ 
+                                        fontSize: '28px', 
+                                        fontWeight: '800',
+                                        color: '#06A77D',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <span style={{ fontSize: '20px' }}>💰</span>
+                                        {t('orders.total')}: ${totalPrice.toFixed(2)}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                        {getNextStatus(order.status) && (
+                                            <button
+                                                onClick={() => updateOrderStatus(order.id, getNextStatus(order.status))}
+                                                style={{
+                                                    padding: '12px 24px',
+                                                    backgroundColor: '#004E89',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '10px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '15px',
+                                                    fontWeight: '700',
+                                                    transition: 'all 0.3s ease',
+                                                    boxShadow: '0 4px 12px rgba(0,78,137,0.3)'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.target.style.backgroundColor = '#003D6E';
+                                                    e.target.style.transform = 'translateY(-2px)';
+                                                    e.target.style.boxShadow = '0 6px 16px rgba(0,78,137,0.4)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.target.style.backgroundColor = '#004E89';
+                                                    e.target.style.transform = 'none';
+                                                    e.target.style.boxShadow = '0 4px 12px rgba(0,78,137,0.3)';
+                                                }}
+                                            >
+                                                {getNextStatusLabel(order.status)}
+                                            </button>
+                                        )}
+                                        
+                                        {order.status === 'pending' && (
+                                            <button
+                                                onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                                                style={{
+                                                    padding: '12px 24px',
+                                                    backgroundColor: '#FFC107',
+                                                    color: '#2C3E50',
+                                                    border: 'none',
+                                                    borderRadius: '10px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '15px',
+                                                    fontWeight: '700',
+                                                    transition: 'all 0.3s ease'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.target.style.backgroundColor = '#FFB300';
+                                                    e.target.style.transform = 'translateY(-2px)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.target.style.backgroundColor = '#FFC107';
+                                                    e.target.style.transform = 'none';
+                                                }}
+                                            >
+                                                {t('common.cancel')}
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => deleteOrder(order.id)}
+                                            style={{
+                                                padding: '12px 24px',
+                                                backgroundColor: '#DC3545',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '10px',
+                                                cursor: 'pointer',
+                                                fontSize: '15px',
+                                                fontWeight: '700',
+                                                transition: 'all 0.3s ease'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.target.style.backgroundColor = '#C82333';
+                                                e.target.style.transform = 'translateY(-2px)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.target.style.backgroundColor = '#DC3545';
+                                                e.target.style.transform = 'none';
+                                            }}
+                                        >
+                                            🗑️ {t('common.delete')}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+                        );
+                    })
+                )}
+            </div>
         </div>
     );
 }
