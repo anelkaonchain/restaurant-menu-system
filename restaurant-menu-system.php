@@ -149,6 +149,18 @@ class Restaurant_Menu_System {
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
             PRIMARY KEY  (id)
         ) $charset_collate;";
+        $expenses_table = $wpdb->prefix . 'rms_expenses';
+        $sql_expenses = "CREATE TABLE $expenses_table (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            category varchar(50) NOT NULL,
+            amount decimal(10,2) NOT NULL,
+            description varchar(255) NOT NULL,
+            expense_date date NOT NULL,
+            receipt_url varchar(500),
+            notes text,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            PRIMARY KEY  (id)
+        ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_tables);
@@ -158,6 +170,7 @@ class Restaurant_Menu_System {
         dbDelta($sql_settings);
         dbDelta($sql_calls);
         dbDelta($sql_stock);
+        dbDelta($sql_expenses);
         
         $default_lang = $wpdb->get_var("SELECT setting_value FROM {$wpdb->prefix}rms_settings WHERE setting_key = 'default_language'");
         if (!$default_lang) {
@@ -368,6 +381,16 @@ class Restaurant_Menu_System {
                 array($this, 'render_stock_page')
             );
         }
+        if (current_user_can('manage_restaurant_menu')) {
+            add_submenu_page(
+                'restaurant-menu',
+                'Expenses',
+                'Expenses',
+                'manage_restaurant_menu',
+                'rms-expenses',
+                array($this, 'render_expenses_page')
+            );
+        }
     }
     
     public function render_view_menu_page() {
@@ -398,6 +421,9 @@ class Restaurant_Menu_System {
     }
     public function render_stock_page() {
         echo '<div class="wrap"><div id="rms-stock-root"></div></div>';
+    }
+    public function render_expenses_page() {
+        echo '<div class="wrap"><div id="rms-expenses-root"></div></div>';
     }
     public function enqueue_admin_scripts($hook) {
         if ('toplevel_page_restaurant-menu' === $hook) {
@@ -541,6 +567,21 @@ class Restaurant_Menu_System {
                 'nonce' => wp_create_nonce('rms_nonce'),
             ));
         }
+        // Expenses için script yükleme
+        if ('restaurant-menu_page_rms-expenses' === $hook) {
+            wp_enqueue_script(
+                'rms-expenses',
+                RMS_URL . 'build/expenses.js',
+                array('wp-element'),
+                RMS_VERSION,
+                true
+            );
+            
+            wp_localize_script('rms-expenses', 'rmsAdmin', array(
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('rms_nonce'),
+            ));
+        }
     }
     
     private function register_ajax_handlers() {
@@ -579,6 +620,9 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_get_stocks', array($this, 'ajax_get_stocks'));
         add_action('wp_ajax_rms_save_stock', array($this, 'ajax_save_stock'));
         add_action('wp_ajax_rms_delete_stock', array($this, 'ajax_delete_stock'));
+        add_action('wp_ajax_rms_get_expenses', array($this, 'ajax_get_expenses'));
+        add_action('wp_ajax_rms_save_expense', array($this, 'ajax_save_expense'));
+        add_action('wp_ajax_rms_delete_expense', array($this, 'ajax_delete_expense'));
     }
     
     public function ajax_get_current_user() {
@@ -1407,6 +1451,86 @@ class Restaurant_Menu_System {
             wp_send_json_error();
         }
     }
+    public function ajax_get_expenses() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $expenses_table = $wpdb->prefix . 'rms_expenses';
+        
+        $expenses = $wpdb->get_results(
+            "SELECT * FROM $expenses_table ORDER BY expense_date DESC, created_at DESC",
+            ARRAY_A
+        );
+        
+        wp_send_json_success($expenses ? $expenses : array());
+    }
+    
+    public function ajax_save_expense() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $expenses_table = $wpdb->prefix . 'rms_expenses';
+        
+        $data = array(
+            'category' => sanitize_text_field($_POST['category']),
+            'amount' => floatval($_POST['amount']),
+            'description' => sanitize_text_field($_POST['description']),
+            'expense_date' => sanitize_text_field($_POST['expense_date']),
+            'receipt_url' => !empty($_POST['receipt_url']) ? esc_url_raw($_POST['receipt_url']) : '',
+            'notes' => !empty($_POST['notes']) ? sanitize_textarea_field($_POST['notes']) : ''
+        );
+        
+        if (!empty($_POST['id'])) {
+            $result = $wpdb->update(
+                $expenses_table,
+                $data,
+                array('id' => intval($_POST['id'])),
+                array('%s', '%f', '%s', '%s', '%s', '%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                wp_send_json_success(array('message' => 'Expense updated'));
+            } else {
+                wp_send_json_error('Database update error');
+            }
+        } else {
+            $result = $wpdb->insert(
+                $expenses_table,
+                $data,
+                array('%s', '%f', '%s', '%s', '%s', '%s')
+            );
+            
+            if ($result) {
+                wp_send_json_success(array('message' => 'Expense created', 'id' => $wpdb->insert_id));
+            } else {
+                wp_send_json_error('Database insert error');
+            }
+        }
+    }
+    
+    public function ajax_delete_expense() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $expenses_table = $wpdb->prefix . 'rms_expenses';
+        
+        $result = $wpdb->delete(
+            $expenses_table,
+            array('id' => intval($_POST['id'])),
+            array('%d')
+        );
+        
+        if ($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error();
+        }
+    }
+    
 }
 
 Restaurant_Menu_System::get_instance();
