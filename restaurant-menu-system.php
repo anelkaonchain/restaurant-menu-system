@@ -73,6 +73,8 @@ class Restaurant_Menu_System {
         $this->create_custom_roles();
         
         $charset_collate = $wpdb->get_charset_collate();
+        $categories_meta = $wpdb->prefix . 'termmeta';
+        $wpdb->query("ALTER TABLE {$wpdb->prefix}terms ADD COLUMN display_order INT DEFAULT 0");
         
         $tables_table = $wpdb->prefix . 'rms_tables';
         $sql_tables = "CREATE TABLE $tables_table (
@@ -592,6 +594,7 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_get_categories', array($this, 'ajax_get_categories'));
         add_action('wp_ajax_rms_save_category', array($this, 'ajax_save_category'));
         add_action('wp_ajax_rms_delete_category', array($this, 'ajax_delete_category'));
+        add_action('wp_ajax_rms_update_category_order', array($this, 'ajax_update_category_order'));
         add_action('wp_ajax_rms_get_tables', array($this, 'ajax_get_tables'));
         add_action('wp_ajax_rms_add_table', array($this, 'ajax_add_table'));
         add_action('wp_ajax_rms_delete_table', array($this, 'ajax_delete_table'));
@@ -779,31 +782,38 @@ class Restaurant_Menu_System {
     }
     
     public function ajax_get_categories() {
-        $this->check_user_capability('manage_restaurant_categories');
-        check_ajax_referer('rms_nonce', 'nonce');
-        
-        $terms = get_terms(array(
-            'taxonomy' => 'rms_category',
-            'hide_empty' => false,
-        ));
-        
-        if (is_wp_error($terms)) {
-            wp_send_json_success(array());
-            return;
-        }
-        
-        $categories = array();
-        foreach ($terms as $term) {
-            $categories[] = array(
-                'id' => $term->term_id,
-                'name' => $term->name,
-                'slug' => $term->slug,
-                'count' => $term->count,
-            );
-        }
-        
-        wp_send_json_success($categories);
+    $this->check_user_capability('manage_restaurant_categories');
+    check_ajax_referer('rms_nonce', 'nonce');
+    
+    $terms = get_terms(array(
+        'taxonomy' => 'rms_category',
+        'hide_empty' => false,
+    ));
+    
+    if (is_wp_error($terms)) {
+        wp_send_json_success(array());
+        return;
     }
+    
+    $categories = array();
+    foreach ($terms as $term) {
+        $display_order = get_term_meta($term->term_id, 'display_order', true);
+        $categories[] = array(
+            'id' => $term->term_id,
+            'name' => $term->name,
+            'slug' => $term->slug,
+            'count' => $term->count,
+            'display_order' => $display_order ? intval($display_order) : 0
+        );
+    }
+    
+    // Sort by display_order
+    usort($categories, function($a, $b) {
+        return ($a['display_order'] ?? 0) - ($b['display_order'] ?? 0);
+    });
+    
+    wp_send_json_success($categories);
+}
     
     public function ajax_save_category() {
         $this->check_user_capability('manage_restaurant_categories');
@@ -811,14 +821,22 @@ class Restaurant_Menu_System {
         
         $name = sanitize_text_field($_POST['name']);
         $slug = sanitize_title($_POST['slug']);
+        $display_order = isset($_POST['display_order']) ? intval($_POST['display_order']) : 0;
         
         if (!empty($_POST['id'])) {
-            $result = wp_update_term(intval($_POST['id']), 'rms_category', array(
+            $term_id = intval($_POST['id']);
+            $result = wp_update_term($term_id, 'rms_category', array(
                 'name' => $name,
                 'slug' => $slug,
             ));
+            if (!is_wp_error($result)) {
+                update_term_meta($term_id, 'display_order', $display_order);
+            }
         } else {
             $result = wp_insert_term($name, 'rms_category', array('slug' => $slug));
+            if (!is_wp_error($result)) {
+                update_term_meta($result['term_id'], 'display_order', $display_order);
+            }
         }
         
         if (is_wp_error($result)) {
@@ -839,6 +857,23 @@ class Restaurant_Menu_System {
         } else {
             wp_send_json_success();
         }
+    }
+    public function ajax_update_category_order() {
+        $this->check_user_capability('manage_restaurant_categories');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        $categories = json_decode(stripslashes($_POST['categories']), true);
+        
+        if (!is_array($categories)) {
+            wp_send_json_error('Invalid data');
+            return;
+        }
+        
+        foreach ($categories as $index => $category_id) {
+            update_term_meta(intval($category_id), 'display_order', $index);
+        }
+        
+        wp_send_json_success();
     }
     public function ajax_get_tables() {
         $this->check_user_capability('manage_restaurant_qrcodes');

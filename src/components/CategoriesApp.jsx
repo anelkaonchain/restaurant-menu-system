@@ -9,6 +9,7 @@ function CategoriesApp() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [showTranslations, setShowTranslations] = useState(null);
+    const [draggedItem, setDraggedItem] = useState(null);
     const [formData, setFormData] = useState({ name: '', slug: '' });
     const [message, setMessage] = useState({ type: '', text: '' });
 
@@ -39,7 +40,11 @@ function CategoriesApp() {
             const data = await response.json();
 
             if (data.success) {
-                setCategories(data.data);
+                // Sort by display_order
+                const sortedCategories = data.data.sort((a, b) => 
+                    (a.display_order || 0) - (b.display_order || 0)
+                );
+                setCategories(sortedCategories);
             } else {
                 console.error('Failed to load categories:', data);
             }
@@ -133,6 +138,59 @@ function CategoriesApp() {
         setFormData({ name: '', slug: '' });
     };
 
+    // Drag & Drop handlers
+    const handleDragStart = (e, index) => {
+        setDraggedItem(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.currentTarget.style.opacity = '0.5';
+    };
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        if (draggedItem === null || draggedItem === index) return;
+
+        const newCategories = [...categories];
+        const draggedCategory = newCategories[draggedItem];
+        
+        // Remove from old position
+        newCategories.splice(draggedItem, 1);
+        // Insert at new position
+        newCategories.splice(index, 0, draggedCategory);
+
+        setDraggedItem(index);
+        setCategories(newCategories);
+    };
+
+    const handleDragEnd = async (e) => {
+        e.currentTarget.style.opacity = '1';
+        setDraggedItem(null);
+        
+        // Save new order to backend
+        const categoryIds = categories.map(cat => cat.id);
+        const formData = new FormData();
+        formData.append('action', 'rms_update_category_order');
+        formData.append('nonce', window.rmsAdmin.nonce);
+        formData.append('categories', JSON.stringify(categoryIds));
+
+        try {
+            const response = await fetch(window.rmsAdmin.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                setMessage({ type: 'success', text: 'Category order updated!' });
+                await loadCategories(); // Reload to get updated display_order values
+            } else {
+                setMessage({ type: 'error', text: 'Failed to update order' });
+            }
+        } catch (error) {
+            console.error('Error updating order:', error);
+            setMessage({ type: 'error', text: 'Error updating order' });
+        }
+    };
+
     return (
         <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '0 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
@@ -158,6 +216,20 @@ function CategoriesApp() {
                     border: `1px solid ${message.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`
                 }}>
                     {message.text}
+                </div>
+            )}
+
+            {categories.length > 0 && !showForm && (
+                <div style={{
+                    padding: '12px 20px',
+                    marginBottom: '20px',
+                    borderRadius: '4px',
+                    background: '#e7f3ff',
+                    color: '#004085',
+                    border: '1px solid #b8daff',
+                    fontSize: '14px'
+                }}>
+                    💡 <strong>Tip:</strong> Drag and drop rows to reorder categories. This order will be reflected in the menu.
                 </div>
             )}
 
@@ -199,6 +271,9 @@ function CategoriesApp() {
                             placeholder={t('categories.slug')}
                             style={{ width: '100%', padding: '8px' }}
                         />
+                        <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                            Leave empty to auto-generate from name
+                        </p>
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -238,6 +313,9 @@ function CategoriesApp() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                                <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold', width: '40px' }}>
+                                    {/* Drag handle column */}
+                                </th>
                                 <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>
                                     {t('common.name')}
                                 </th>
@@ -253,8 +331,30 @@ function CategoriesApp() {
                             </tr>
                         </thead>
                         <tbody>
-                            {categories.map(category => (
-                                <tr key={category.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                            {categories.map((category, index) => (
+                                <tr 
+                                    key={category.id} 
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={(e) => handleDragOver(e, index)}
+                                    onDragEnd={handleDragEnd}
+                                    style={{ 
+                                        borderBottom: '1px solid #dee2e6',
+                                        cursor: 'move',
+                                        backgroundColor: draggedItem === index ? '#f0f0f0' : 'transparent',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                >
+                                    <td style={{ padding: '15px', textAlign: 'center' }}>
+                                        <span style={{ 
+                                            color: '#999', 
+                                            cursor: 'grab',
+                                            fontSize: '20px',
+                                            userSelect: 'none'
+                                        }}>
+                                            ⋮⋮
+                                        </span>
+                                    </td>
                                     <td style={{ padding: '15px' }}>
                                         <strong>{category.name}</strong>
                                     </td>

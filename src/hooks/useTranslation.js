@@ -7,6 +7,7 @@ const translations = {
             edit: "Edit",
             delete: "Delete",
             save: "Save",
+            saving: "Saving...",
             cancel: "Cancel",
             loading: "Loading...",
             name: "Name",
@@ -32,7 +33,15 @@ const translations = {
             category_name: "Category Name",
             slug: "Slug",
             count: "Count",
-            items: "items"
+            items: "items",
+            no_categories: "No categories yet. Click 'Add New Category' to create one.",
+            name_required: "Category name is required",
+            save_success: "Category saved successfully!",
+            save_error: "Failed to save category",
+            delete_confirm: "Are you sure you want to delete this category?",
+            delete_success: "Category deleted successfully!",
+            delete_error: "Failed to delete category",
+            load_error: "Failed to load categories"
         },
         orders: {
             title: "Orders",
@@ -71,6 +80,7 @@ const translations = {
             edit: "Düzenle",
             delete: "Sil",
             save: "Kaydet",
+            saving: "Kaydediliyor...",
             cancel: "İptal",
             loading: "Yükleniyor...",
             name: "İsim",
@@ -96,7 +106,15 @@ const translations = {
             category_name: "Kategori Adı",
             slug: "Slug",
             count: "Adet",
-            items: "ürün"
+            items: "ürün",
+            no_categories: "Henüz kategori yok. 'Yeni Kategori Ekle' butonuna tıklayın.",
+            name_required: "Kategori adı gereklidir",
+            save_success: "Kategori başarıyla kaydedildi!",
+            save_error: "Kategori kaydedilemedi",
+            delete_confirm: "Bu kategoriyi silmek istediğinizden emin misiniz?",
+            delete_success: "Kategori başarıyla silindi!",
+            delete_error: "Kategori silinemedi",
+            load_error: "Kategoriler yüklenemedi"
         },
         orders: {
             title: "Siparişler",
@@ -166,6 +184,7 @@ function useTranslation() {
             if (value && value[k]) {
                 value = value[k];
             } else {
+                // Fallback to English
                 value = translations['en'];
                 for (const k of keys) {
                     if (value && value[k]) {
@@ -183,7 +202,6 @@ function useTranslation() {
 
     return { t, language: currentLang };
 }
-
 
 export default useTranslation;
 export { useTranslation };

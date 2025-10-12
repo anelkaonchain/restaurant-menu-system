@@ -10,6 +10,7 @@ function AdminApp() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [showTranslations, setShowTranslations] = useState(null);
+    const [uploadingImage, setUploadingImage] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -135,6 +136,7 @@ function AdminApp() {
             image: item.image || ''
         });
         setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleDelete = async (id) => {
@@ -176,6 +178,19 @@ function AdminApp() {
         const file = e.target.files[0];
         if (!file) return;
         
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            setMessage({ type: 'error', text: 'Please select an image file' });
+            return;
+        }
+        
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            setMessage({ type: 'error', text: 'Image size must be less than 5MB' });
+            return;
+        }
+        
+        setUploadingImage(true);
         const formData = new FormData();
         formData.append('action', 'rms_upload_image');
         formData.append('nonce', window.rmsAdmin.nonce);
@@ -190,13 +205,17 @@ function AdminApp() {
             
             if (data.success) {
                 setFormData(prev => ({ ...prev, image: data.data.url }));
-                setMessage({ type: 'success', text: 'Image uploaded!' });
+                setMessage({ type: 'success', text: 'Image uploaded successfully!' });
             } else {
-                setMessage({ type: 'error', text: 'Failed to upload image' });
+                setMessage({ type: 'error', text: data.data || 'Failed to upload image' });
             }
         } catch (error) {
             console.error('Upload error:', error);
-            setMessage({ type: 'error', text: 'Error uploading image' });
+            setMessage({ type: 'error', text: 'Error uploading image. Please try again.' });
+        } finally {
+            setUploadingImage(false);
+            // Reset file input
+            e.target.value = '';
         }
     };
 
@@ -295,9 +314,11 @@ function AdminApp() {
                                 style={{ width: '100%', padding: '8px' }}
                             >
                                 <option value="">{t('menu_items.select_category')}</option>
-                                {categories.map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                ))}
+                                {categories
+                                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                                    .map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
                             </select>
                         </div>
                     </div>
@@ -337,15 +358,21 @@ function AdminApp() {
                             type="file"
                             accept="image/*"
                             onChange={handleImageUpload}
+                            disabled={uploadingImage}
                             style={{ display: 'block' }}
                         />
+                        {uploadingImage && (
+                            <p style={{ color: '#666', fontSize: '13px', marginTop: '5px' }}>
+                                Uploading image...
+                            </p>
+                        )}
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px' }}>
                         <button
                             className="button button-primary"
                             onClick={handleSave}
-                            disabled={loading}
+                            disabled={loading || uploadingImage}
                         >
                             {loading ? t('common.saving') : t('common.save')}
                         </button>
@@ -375,80 +402,179 @@ function AdminApp() {
                         No menu items yet. Click "Add New Item" to create one.
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                        {items.map(item => (
-                            <div key={item.id} style={{
-                                padding: '20px',
-                                border: '1px solid #ddd',
-                                borderRadius: '8px',
-                                background: '#fafafa'
-                            }}>
-                                {item.image && (
-                                    <img 
-                                        src={item.image} 
-                                        alt={item.name}
-                                        style={{ 
-                                            width: '100%', 
-                                            height: '200px', 
-                                            objectFit: 'cover', 
-                                            borderRadius: '8px',
-                                            marginBottom: '15px'
-                                        }} 
-                                    />
-                                )}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
-                                    <h3 style={{ margin: 0, fontSize: '18px' }}>{item.name}</h3>
-                                    {item.category_name && (
-                                        <span style={{
-                                            fontSize: '11px',
-                                            background: '#2271b1',
-                                            color: 'white',
-                                            padding: '3px 8px',
-                                            borderRadius: '10px'
+                    <>
+                        {/* Kategorilere göre grupla */}
+                        {categories
+                            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                            .map(category => {
+                                const categoryItems = items.filter(item => item.category === category.id);
+                                if (categoryItems.length === 0) return null;
+                                
+                                return (
+                                    <div key={category.id} style={{ marginBottom: '40px' }}>
+                                        <h2 style={{ 
+                                            fontSize: '24px', 
+                                            color: '#2271b1', 
+                                            marginBottom: '20px',
+                                            paddingBottom: '10px',
+                                            borderBottom: '2px solid #2271b1'
                                         }}>
-                                            {item.category_name}
-                                        </span>
-                                    )}
-                                </div>
-                                <p style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>
-                                    {item.description || 'No description'}
-                                </p>
-                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#27ae60' }}>
-                                    ${item.price}
-                                </div>
-                                {item.allergens && (
-                                    <div style={{ marginTop: '10px', padding: '8px', background: '#fff3cd', borderRadius: '4px', fontSize: '12px' }}>
-                                        Allergens: {item.allergens}
+                                            {category.name} ({categoryItems.length})
+                                        </h2>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                                            {categoryItems.map(item => (
+                                                <div key={item.id} style={{
+                                                    padding: '20px',
+                                                    border: '1px solid #ddd',
+                                                    borderRadius: '8px',
+                                                    background: '#fafafa'
+                                                }}>
+                                                    {item.image && (
+                                                        <img 
+                                                            src={item.image} 
+                                                            alt={item.name}
+                                                            style={{ 
+                                                                width: '100%', 
+                                                                height: '200px', 
+                                                                objectFit: 'cover', 
+                                                                borderRadius: '8px',
+                                                                marginBottom: '15px'
+                                                            }} 
+                                                        />
+                                                    )}
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
+                                                        <h3 style={{ margin: 0, fontSize: '18px' }}>{item.name}</h3>
+                                                        <span style={{
+                                                            fontSize: '11px',
+                                                            background: '#2271b1',
+                                                            color: 'white',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '10px'
+                                                        }}>
+                                                            {item.category_name}
+                                                        </span>
+                                                    </div>
+                                                    <p style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>
+                                                        {item.description || 'No description'}
+                                                    </p>
+                                                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#27ae60' }}>
+                                                        ${item.price}
+                                                    </div>
+                                                    {item.allergens && (
+                                                        <div style={{ marginTop: '10px', padding: '8px', background: '#fff3cd', borderRadius: '4px', fontSize: '12px' }}>
+                                                            Allergens: {item.allergens}
+                                                        </div>
+                                                    )}
+                                                    <div style={{ display: 'flex', gap: '8px', marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #ddd' }}>
+                                                        <button 
+                                                            className="button button-small" 
+                                                            onClick={() => handleEdit(item)}
+                                                            disabled={loading}
+                                                        >
+                                                            {t('common.edit')}
+                                                        </button>
+                                                        <button 
+                                                            className="button button-small" 
+                                                            onClick={() => setShowTranslations(item)}
+                                                            disabled={loading}
+                                                            style={{ background: '#667eea', color: 'white' }}
+                                                        >
+                                                            🌍 {t('common.translate')}
+                                                        </button>
+                                                        <button 
+                                                            className="button button-small button-link-delete" 
+                                                            onClick={() => handleDelete(item.id)} 
+                                                            disabled={loading}
+                                                            style={{ color: '#b32d2e' }}
+                                                        >
+                                                            {t('common.delete')}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                )}
-                                <div style={{ display: 'flex', gap: '8px', marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #ddd' }}>
-                                    <button 
-                                        className="button button-small" 
-                                        onClick={() => handleEdit(item)}
-                                        disabled={loading}
-                                    >
-                                        {t('common.edit')}
-                                    </button>
-                                    <button 
-                                        className="button button-small" 
-                                        onClick={() => setShowTranslations(item)}
-                                        disabled={loading}
-                                        style={{ background: '#667eea', color: 'white' }}
-                                    >
-                                        🌍 {t('common.translate')}
-                                    </button>
-                                    <button 
-                                        className="button button-small button-link-delete" 
-                                        onClick={() => handleDelete(item.id)} 
-                                        disabled={loading}
-                                        style={{ color: '#b32d2e' }}
-                                    >
-                                        {t('common.delete')}
-                                    </button>
+                                );
+                            })}
+                        
+                        {/* Kategorisiz itemler */}
+                        {items.filter(item => !item.category).length > 0 && (
+                            <div style={{ marginBottom: '40px' }}>
+                                <h2 style={{ 
+                                    fontSize: '24px', 
+                                    color: '#999', 
+                                    marginBottom: '20px',
+                                    paddingBottom: '10px',
+                                    borderBottom: '2px solid #ddd'
+                                }}>
+                                    Uncategorized ({items.filter(item => !item.category).length})
+                                </h2>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                                    {items.filter(item => !item.category).map(item => (
+                                        <div key={item.id} style={{
+                                            padding: '20px',
+                                            border: '1px solid #ddd',
+                                            borderRadius: '8px',
+                                            background: '#fafafa'
+                                        }}>
+                                            {item.image && (
+                                                <img 
+                                                    src={item.image} 
+                                                    alt={item.name}
+                                                    style={{ 
+                                                        width: '100%', 
+                                                        height: '200px', 
+                                                        objectFit: 'cover', 
+                                                        borderRadius: '8px',
+                                                        marginBottom: '15px'
+                                                    }} 
+                                                />
+                                            )}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
+                                                <h3 style={{ margin: 0, fontSize: '18px' }}>{item.name}</h3>
+                                            </div>
+                                            <p style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>
+                                                {item.description || 'No description'}
+                                            </p>
+                                            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#27ae60' }}>
+                                                ${item.price}
+                                            </div>
+                                            {item.allergens && (
+                                                <div style={{ marginTop: '10px', padding: '8px', background: '#fff3cd', borderRadius: '4px', fontSize: '12px' }}>
+                                                    Allergens: {item.allergens}
+                                                </div>
+                                            )}
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #ddd' }}>
+                                                <button 
+                                                    className="button button-small" 
+                                                    onClick={() => handleEdit(item)}
+                                                    disabled={loading}
+                                                >
+                                                    {t('common.edit')}
+                                                </button>
+                                                <button 
+                                                    className="button button-small" 
+                                                    onClick={() => setShowTranslations(item)}
+                                                    disabled={loading}
+                                                    style={{ background: '#667eea', color: 'white' }}
+                                                >
+                                                    🌍 {t('common.translate')}
+                                                </button>
+                                                <button 
+                                                    className="button button-small button-link-delete" 
+                                                    onClick={() => handleDelete(item.id)} 
+                                                    disabled={loading}
+                                                    style={{ color: '#b32d2e' }}
+                                                >
+                                                    {t('common.delete')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
             
