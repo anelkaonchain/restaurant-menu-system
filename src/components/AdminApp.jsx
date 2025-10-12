@@ -1,6 +1,7 @@
 import { useState, useEffect } from '@wordpress/element';
 import TranslationsModal from './TranslationsModal';
 import { useTranslation } from '../hooks/useTranslation';
+import ItemOptionsModal from './ItemOptionsModal';
 
 function AdminApp() {
     const { t } = useTranslation();
@@ -10,6 +11,7 @@ function AdminApp() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [showTranslations, setShowTranslations] = useState(null);
+    const [showOptions, setShowOptions] = useState(null);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
@@ -482,6 +484,14 @@ function AdminApp() {
                                                             🌍 {t('common.translate')}
                                                         </button>
                                                         <button 
+                                                            className="button button-small" 
+                                                            onClick={() => setShowOptions(item)}
+                                                            disabled={loading}
+                                                            style={{ background: '#f59e0b', color: 'white' }}
+                                                        >
+                                                          ⚙️ Options
+                                                        </button>
+                                                        <button 
                                                             className="button button-small button-link-delete" 
                                                             onClick={() => handleDelete(item.id)} 
                                                             disabled={loading}
@@ -582,6 +592,13 @@ function AdminApp() {
                 <TranslationsModal 
                     item={showTranslations} 
                     onClose={() => setShowTranslations(null)} 
+                />
+            )}
+            
+            {showOptions && (
+                <ItemOptionsModal 
+                    item={showOptions} 
+                    onClose={() => setShowOptions(null)} 
                 />
             )}
         </div>

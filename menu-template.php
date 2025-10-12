@@ -6,13 +6,18 @@
 
 // Get all menu items grouped by category
 function rms_get_grouped_menu_items() {
+    // DEĞIŞIKLIK 1: WordPress Post Type sistemi kullan (custom table değil)
     $categories = get_terms(array(
-    'taxonomy' => 'rms_category',
-    'hide_empty' => true,
-    'meta_key' => 'display_order',
-    'orderby' => 'meta_value_num',
-    'order' => 'ASC',
+        'taxonomy' => 'rms_category',
+        'hide_empty' => true,
+        'meta_key' => 'display_order',
+        'orderby' => 'meta_value_num',
+        'order' => 'ASC',
     ));
+    
+    if (empty($categories) || is_wp_error($categories)) {
+        return array();
+    }
     
     $menu_data = array();
     
@@ -38,6 +43,14 @@ function rms_get_grouped_menu_items() {
             $query->the_post();
             $post_id = get_the_ID();
             
+            // DEĞIŞIKLIK 2: Ürün seçeneklerini çek
+            global $wpdb;
+            $options_table = $wpdb->prefix . 'rms_item_options';
+            $options = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $options_table WHERE item_id = %d ORDER BY option_name",
+                $post_id
+            ), ARRAY_A);
+            
             $items[] = array(
                 'id' => $post_id,
                 'name' => get_the_title(),
@@ -45,6 +58,7 @@ function rms_get_grouped_menu_items() {
                 'price' => get_post_meta($post_id, '_rms_price', true),
                 'allergens' => get_post_meta($post_id, '_rms_allergens', true),
                 'image' => get_post_meta($post_id, '_rms_image', true),
+                'options' => $options,
             );
         }
         wp_reset_postdata();
@@ -525,6 +539,112 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             background: #f1f3f5;
             color: #868e96;
         }
+
+        /* DEĞIŞIKLIK 3: Item Options Modal Stilleri */
+        .item-detail-modal .modal-content {
+            max-width: 500px;
+        }
+
+        .item-detail-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .item-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .item-detail-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .item-detail-price {
+            font-size: 28px;
+            font-weight: bold;
+            color: #27ae60;
+        }
+
+        .item-detail-description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .options-section {
+            margin: 20px 0;
+        }
+
+        .options-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .option-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .option-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .option-item.selected {
+            border-color: #667eea;
+            background: #e8ebff;
+        }
+
+        .option-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .option-price {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .add-to-cart-btn {
+            width: 100%;
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .add-to-cart-btn:hover {
+            background: #229954;
+        }
+
+        .modal-total-price {
+            font-size: 22px;
+            font-weight: bold;
+        }
         
         @media (max-width: 600px) {
             body {
@@ -614,7 +734,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                         <h2 class="category-title"><?php echo esc_html($section['category']); ?></h2>
                         
                         <?php foreach ($section['items'] as $item): ?>
-                            <div class="menu-item" onclick="addToCart(<?php echo htmlspecialchars(json_encode($item)); ?>)">
+                            <div class="menu-item" onclick='openItemModal(<?php echo htmlspecialchars(json_encode($item), ENT_QUOTES, 'UTF-8'); ?>)'>
                                 <?php if (!empty($item['image'])): ?>
                                     <img src="<?php echo esc_url($item['image']); ?>" alt="<?php echo esc_attr($item['name']); ?>" class="item-image">
                                 <?php endif; ?>
@@ -660,6 +780,38 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         <div class="status-step pending" id="statusDelivered">🎉 Delivered</div>
     </div>
     
+    <!-- DEĞIŞIKLIK 4: Item Detail Modal -->
+    <div class="modal item-detail-modal" id="itemDetailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalItemName">Item Details</h2>
+                <span class="close-btn" onclick="closeItemModal()">&times;</span>
+            </div>
+            
+            <img id="modalItemImage" class="item-detail-image" style="display: none;" />
+            
+            <div class="item-detail-header">
+                <div class="item-detail-name" id="modalItemNameLarge"></div>
+                <div class="item-detail-price" id="modalItemPrice">$0.00</div>
+            </div>
+            
+            <div class="item-detail-description" id="modalItemDescription"></div>
+            
+            <div id="modalItemAllergens" style="display: none;" class="item-allergens"></div>
+            
+            <div id="optionsSection" class="options-section" style="display: none;">
+                <div class="options-title">Customize Your Order</div>
+                <div id="optionsList"></div>
+            </div>
+            
+            <button class="add-to-cart-btn" onclick="addItemToCart()">
+                <span>Add to Cart</span>
+                <span class="modal-total-price" id="modalTotalPrice">$0.00</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Cart Modal -->
     <div class="modal" id="cartModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -701,6 +853,8 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         let currentLanguage = 'en';
         let menuData = <?php echo json_encode($menu_data); ?>;
         let currentOrderId = localStorage.getItem('currentOrderId_' + tableNumber);
+        let currentItem = null;
+        let selectedOptions = [];
         
         const languages = {
             'tr': 'Türkçe',
@@ -794,7 +948,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 html += `<div class="category"><h2 class="category-title">${section.category}</h2>`;
                 section.items.forEach(item => {
                     html += `
-                        <div class="menu-item" onclick='addToCart(${JSON.stringify(item).replace(/'/g, "\\'")})'> 
+                        <div class="menu-item" onclick='openItemModal(${JSON.stringify(item).replace(/'/g, "&#39;")})'> 
                             ${item.image ? `<img src="${item.image}" alt="${item.name}" class="item-image">` : ''}
                             <div class="item-content">
                                 <div class="item-header">
@@ -819,29 +973,134 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 document.getElementById('languageDropdown').classList.remove('active');
             }
         });
-        
-        function addToCart(item) {
-            const existingItem = cart.find(i => i.id === item.id);
-            if (existingItem) {
-                existingItem.quantity++;
+
+        // DEĞIŞIKLIK 5: Item Modal Fonksiyonları (window objesine ekle)
+        window.openItemModal = function(item) {
+            currentItem = item;
+            selectedOptions = [];
+            
+            document.getElementById('modalItemName').textContent = item.name;
+            document.getElementById('modalItemNameLarge').textContent = item.name;
+            document.getElementById('modalItemPrice').textContent = '$' + parseFloat(item.price).toFixed(2);
+            document.getElementById('modalTotalPrice').textContent = '$' + parseFloat(item.price).toFixed(2);
+            
+            // Image
+            const modalImage = document.getElementById('modalItemImage');
+            if (item.image) {
+                modalImage.src = item.image;
+                modalImage.style.display = 'block';
             } else {
-                cart.push({...item, quantity: 1});
+                modalImage.style.display = 'none';
             }
+            
+            // Description
+            const descElement = document.getElementById('modalItemDescription');
+            if (item.description) {
+                descElement.textContent = item.description;
+                descElement.style.display = 'block';
+            } else {
+                descElement.style.display = 'none';
+            }
+            
+            // Allergens
+            const allergenElement = document.getElementById('modalItemAllergens');
+            if (item.allergens) {
+                allergenElement.textContent = '⚠️ Contains: ' + item.allergens;
+                allergenElement.style.display = 'block';
+            } else {
+                allergenElement.style.display = 'none';
+            }
+            
+            // Options
+            const optionsSection = document.getElementById('optionsSection');
+            const optionsList = document.getElementById('optionsList');
+            
+            if (item.options && item.options.length > 0) {
+                optionsSection.style.display = 'block';
+                let optionsHtml = '';
+                item.options.forEach(option => {
+                    optionsHtml += `
+                        <div class="option-item" onclick="toggleOption(${option.id}, '${option.option_name.replace(/'/g, "\\'")}', ${option.option_price})">
+                            <span class="option-name">${option.option_name}</span>
+                            <span class="option-price">+$${parseFloat(option.option_price).toFixed(2)}</span>
+                        </div>
+                    `;
+                });
+                optionsList.innerHTML = optionsHtml;
+            } else {
+                optionsSection.style.display = 'none';
+            }
+            
+            document.getElementById('itemDetailModal').classList.add('active');
+        }
+
+        window.closeItemModal = function() {
+            document.getElementById('itemDetailModal').classList.remove('active');
+            currentItem = null;
+            selectedOptions = [];
+        }
+
+        window.toggleOption = function(optionId, optionName, optionPrice) {
+            const optionIndex = selectedOptions.findIndex(opt => opt.id === optionId);
+            
+            if (optionIndex > -1) {
+                // Remove option
+                selectedOptions.splice(optionIndex, 1);
+                event.target.closest('.option-item').classList.remove('selected');
+            } else {
+                // Add option
+                selectedOptions.push({
+                    id: optionId,
+                    option_name: optionName,
+                    option_price: optionPrice
+                });
+                event.target.closest('.option-item').classList.add('selected');
+            }
+            
+            updateModalTotal();
+        }
+
+        window.updateModalTotal = function() {
+            if (!currentItem) return;
+            
+            let total = parseFloat(currentItem.price);
+            selectedOptions.forEach(opt => {
+                total += parseFloat(opt.option_price);
+            });
+            
+            document.getElementById('modalTotalPrice').textContent = '$' + total.toFixed(2);
+        }
+
+        window.addItemToCart = function() {
+            if (!currentItem) return;
+            
+            const uniqueId = currentItem.id + '_' + Date.now() + '_' + Math.random();
+            
+            cart.push({
+                uniqueId: uniqueId,
+                id: currentItem.id,
+                name: currentItem.name,
+                price: currentItem.price,
+                quantity: 1,
+                selectedOptions: [...selectedOptions]
+            });
+            
             updateCart();
-            showNotification('Added to cart: ' + item.name, 'success');
+            showNotification('Added to cart: ' + currentItem.name, 'success');
+            closeItemModal();
         }
         
-        function removeFromCart(itemId) {
-            cart = cart.filter(item => item.id !== itemId);
+        window.removeFromCart = function(uniqueId) {
+            cart = cart.filter(item => item.uniqueId !== uniqueId);
             updateCart();
         }
         
-        function updateQuantity(itemId, change) {
-            const item = cart.find(i => i.id === itemId);
+        window.updateQuantity = function(uniqueId, change) {
+            const item = cart.find(i => i.uniqueId === uniqueId);
             if (item) {
                 item.quantity += change;
                 if (item.quantity <= 0) {
-                    removeFromCart(itemId);
+                    removeFromCart(uniqueId);
                 } else {
                     updateCart();
                 }
@@ -874,18 +1133,34 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             
             cart.forEach(item => {
                 const itemTotal = item.price * item.quantity;
-                total += itemTotal;
+                
+                // Calculate options total
+                let optionsTotal = 0;
+                if (item.selectedOptions && item.selectedOptions.length > 0) {
+                    item.selectedOptions.forEach(opt => {
+                        optionsTotal += parseFloat(opt.option_price) * item.quantity;
+                    });
+                }
+                
+                const finalTotal = itemTotal + optionsTotal;
+                total += finalTotal;
+                
                 html += `
                     <div class="cart-item">
-                        <div>
+                        <div style="flex: 1;">
                             <div style="font-weight: 600;">${item.name}</div>
                             <div style="color: #666; font-size: 14px;">$${item.price} each</div>
+                            ${item.selectedOptions && item.selectedOptions.length > 0 ? `
+                                <div style="font-size: 12px; color: #667eea; margin-top: 5px;">
+                                    ${item.selectedOptions.map(opt => `+ ${opt.option_name} ($${parseFloat(opt.option_price).toFixed(2)})`).join('<br>')}
+                                </div>
+                            ` : ''}
                         </div>
                         <div class="quantity-controls">
-                            <button class="qty-btn" onclick="updateQuantity(${item.id}, -1)">-</button>
+                            <button class="qty-btn" onclick="updateQuantity('${item.uniqueId}', -1)">-</button>
                             <span style="min-width: 30px; text-align: center; font-weight: 600;">${item.quantity}</span>
-                            <button class="qty-btn" onclick="updateQuantity(${item.id}, 1)">+</button>
-                            <span style="margin-left: 15px; font-weight: 600;">$${itemTotal.toFixed(2)}</span>
+                            <button class="qty-btn" onclick="updateQuantity('${item.uniqueId}', 1)">+</button>
+                            <span style="margin-left: 15px; font-weight: 600;">$${finalTotal.toFixed(2)}</span>
                         </div>
                     </div>
                 `;
@@ -895,7 +1170,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             document.getElementById('totalPrice').textContent = total.toFixed(2);
         }
         
-        function toggleCart() {
+        window.toggleCart = function() {
             const modal = document.getElementById('cartModal');
             modal.classList.toggle('active');
             if (modal.classList.contains('active')) {
@@ -903,7 +1178,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             }
         }
         
-        async function submitOrder() {
+        window.submitOrder = async function() {
             if (!tableNumber) {
                 alert('Table number is required!');
                 return;
@@ -911,7 +1186,15 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             
             const customerName = document.getElementById('customerName').value;
             const notes = document.getElementById('orderNotes').value;
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const total = cart.reduce((sum, item) => {
+                let itemTotal = item.price * item.quantity;
+                if (item.selectedOptions && item.selectedOptions.length > 0) {
+                    item.selectedOptions.forEach(opt => {
+                        itemTotal += parseFloat(opt.option_price) * item.quantity;
+                    });
+                }
+                return sum + itemTotal;
+            }, 0);
             
             const formData = new FormData();
             formData.append('action', 'rms_submit_order');
@@ -923,7 +1206,8 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 id: item.id,
                 name: item.name,
                 price: item.price,
-                quantity: item.quantity
+                quantity: item.quantity,
+                selectedOptions: item.selectedOptions || []
             }))));
             
             try {
@@ -952,7 +1236,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             }
         }
         
-        function closeAndReset() {
+        window.closeAndReset = function() {
             cart = [];
             updateCart();
             toggleCart();
@@ -965,8 +1249,10 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         
         // Call waiter function
         document.getElementById('callWaiterBtn')?.addEventListener('click', async function() {
-            const originalText = this.textContent;
-            this.textContent = '⏳ Calling...';
+            const btn = this;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Calling...';
+            btn.disabled = true;
             
             try {
                 const formData = new FormData();
@@ -982,18 +1268,21 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 
                 if (data.success) {
                     showNotification('Waiter has been called! Please wait.', 'success');
-                    this.textContent = '✓ Waiter Called';
+                    btn.textContent = '✓ Waiter Called';
                     setTimeout(() => {
-                        this.textContent = originalText;
+                        btn.textContent = originalText;
+                        btn.disabled = false;
                     }, 3000);
                 } else {
                     showNotification('Failed to call waiter', 'warning');
-                    this.textContent = originalText;
+                    btn.textContent = originalText;
+                    btn.disabled = false;
                 }
             } catch (error) {
                 console.error('Error calling waiter:', error);
                 showNotification('Error calling waiter', 'warning');
-                this.textContent = originalText;
+                btn.textContent = originalText;
+                btn.disabled = false;
             }
         });
         
@@ -1033,52 +1322,51 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             checkStatus();
         }
 
-        let lastNotifiedStatus = null; // Yeni değişken ekleyin (script başına)
+        let lastNotifiedStatus = null;
 
-function updateOrderStatus(status) {
-    // Reset all statuses
-    document.querySelectorAll('.status-step').forEach(el => {
-        el.className = 'status-step pending';
-    });
+        function updateOrderStatus(status) {
+            // Reset all statuses
+            document.querySelectorAll('.status-step').forEach(el => {
+                el.className = 'status-step pending';
+            });
 
-    // Update based on current status
-    if (status === 'pending') {
-        document.getElementById('statusPending').className = 'status-step active';
-    } else if (status === 'preparing') {
-        document.getElementById('statusPending').className = 'status-step completed';
-        document.getElementById('statusPreparing').className = 'status-step active';
-        
-        // Sadece durum değiştiyse bildirim göster
-        if (lastNotifiedStatus !== 'preparing') {
-            showNotification('Your order is being prepared!', 'info');
-            lastNotifiedStatus = 'preparing';
+            // Update based on current status
+            if (status === 'pending') {
+                document.getElementById('statusPending').className = 'status-step active';
+            } else if (status === 'preparing') {
+                document.getElementById('statusPending').className = 'status-step completed';
+                document.getElementById('statusPreparing').className = 'status-step active';
+                
+                if (lastNotifiedStatus !== 'preparing') {
+                    showNotification('Your order is being prepared!', 'info');
+                    lastNotifiedStatus = 'preparing';
+                }
+            } else if (status === 'ready') {
+                document.getElementById('statusPending').className = 'status-step completed';
+                document.getElementById('statusPreparing').className = 'status-step completed';
+                document.getElementById('statusReady').className = 'status-step active';
+                
+                if (lastNotifiedStatus !== 'ready') {
+                    showNotification('Your order is ready!', 'success');
+                    lastNotifiedStatus = 'ready';
+                }
+            } else if (status === 'delivered') {
+                document.getElementById('statusPending').className = 'status-step completed';
+                document.getElementById('statusPreparing').className = 'status-step completed';
+                document.getElementById('statusReady').className = 'status-step completed';
+                document.getElementById('statusDelivered').className = 'status-step active';
+                
+                if (lastNotifiedStatus !== 'delivered') {
+                    showNotification('Enjoy your meal!', 'success');
+                    lastNotifiedStatus = 'delivered';
+                }
+                
+                localStorage.removeItem('currentOrderId_' + tableNumber);
+                setTimeout(() => {
+                    document.getElementById('orderStatusTracker').classList.remove('active');
+                }, 5000);
+            }
         }
-    } else if (status === 'ready') {
-        document.getElementById('statusPending').className = 'status-step completed';
-        document.getElementById('statusPreparing').className = 'status-step completed';
-        document.getElementById('statusReady').className = 'status-step active';
-        
-        if (lastNotifiedStatus !== 'ready') {
-            showNotification('Your order is ready!', 'success');
-            lastNotifiedStatus = 'ready';
-        }
-    } else if (status === 'delivered') {
-        document.getElementById('statusPending').className = 'status-step completed';
-        document.getElementById('statusPreparing').className = 'status-step completed';
-        document.getElementById('statusReady').className = 'status-step completed';
-        document.getElementById('statusDelivered').className = 'status-step active';
-        
-        if (lastNotifiedStatus !== 'delivered') {
-            showNotification('Enjoy your meal!', 'success');
-            lastNotifiedStatus = 'delivered';
-        }
-        
-        localStorage.removeItem('currentOrderId_' + tableNumber);
-        setTimeout(() => {
-            document.getElementById('orderStatusTracker').classList.remove('active');
-        }, 5000);
-    }
-}
     </script>
 </body>
 </html>
