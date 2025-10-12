@@ -7,8 +7,11 @@
 // Get all menu items grouped by category
 function rms_get_grouped_menu_items() {
     $categories = get_terms(array(
-        'taxonomy' => 'rms_category',
-        'hide_empty' => true,
+    'taxonomy' => 'rms_category',
+    'hide_empty' => true,
+    'meta_key' => 'display_order',
+    'orderby' => 'meta_value_num',
+    'order' => 'ASC',
     ));
     
     $menu_data = array();

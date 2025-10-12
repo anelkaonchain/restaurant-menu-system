@@ -73,11 +73,13 @@ class Restaurant_Menu_System {
         $this->create_custom_roles();
         
         $charset_collate = $wpdb->get_charset_collate();
-        $categories_meta = $wpdb->prefix . 'termmeta';
-        $wpdb->query("ALTER TABLE {$wpdb->prefix}terms ADD COLUMN display_order INT DEFAULT 0");
         
+        // Terms tablosuna display_order kolonu ekle
+        $wpdb->query("ALTER TABLE {$wpdb->prefix}terms ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0");
+        
+        // Tables
         $tables_table = $wpdb->prefix . 'rms_tables';
-        $sql_tables = "CREATE TABLE $tables_table (
+        $sql_tables = "CREATE TABLE IF NOT EXISTS $tables_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             table_number varchar(50) NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -85,8 +87,9 @@ class Restaurant_Menu_System {
             UNIQUE KEY table_number (table_number)
         ) $charset_collate;";
         
+        // Orders
         $orders_table = $wpdb->prefix . 'rms_orders';
-        $sql_orders = "CREATE TABLE $orders_table (
+        $sql_orders = "CREATE TABLE IF NOT EXISTS $orders_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             table_number varchar(50) NOT NULL,
             customer_name varchar(100),
@@ -98,8 +101,9 @@ class Restaurant_Menu_System {
             PRIMARY KEY  (id)
         ) $charset_collate;";
         
+        // Translations
         $translations_table = $wpdb->prefix . 'rms_translations';
-        $sql_translations = "CREATE TABLE $translations_table (
+        $sql_translations = "CREATE TABLE IF NOT EXISTS $translations_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             item_id mediumint(9) NOT NULL,
             language_code varchar(10) NOT NULL,
@@ -109,8 +113,9 @@ class Restaurant_Menu_System {
             UNIQUE KEY item_language (item_id, language_code)
         ) $charset_collate;";
         
+        // Category Translations
         $category_translations_table = $wpdb->prefix . 'rms_category_translations';
-        $sql_category_translations = "CREATE TABLE $category_translations_table (
+        $sql_category_translations = "CREATE TABLE IF NOT EXISTS $category_translations_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             category_id mediumint(9) NOT NULL,
             language_code varchar(10) NOT NULL,
@@ -119,8 +124,9 @@ class Restaurant_Menu_System {
             UNIQUE KEY category_language (category_id, language_code)
         ) $charset_collate;";
         
+        // Settings
         $settings_table = $wpdb->prefix . 'rms_settings';
-        $sql_settings = "CREATE TABLE $settings_table (
+        $sql_settings = "CREATE TABLE IF NOT EXISTS $settings_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             setting_key varchar(100) NOT NULL,
             setting_value text,
@@ -128,8 +134,9 @@ class Restaurant_Menu_System {
             UNIQUE KEY setting_key (setting_key)
         ) $charset_collate;";
         
+        // Calls
         $calls_table = $wpdb->prefix . 'rms_calls';
-        $sql_calls = "CREATE TABLE $calls_table (
+        $sql_calls = "CREATE TABLE IF NOT EXISTS $calls_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             table_number varchar(50) NOT NULL,
             status varchar(20) DEFAULT 'pending' NOT NULL,
@@ -137,8 +144,10 @@ class Restaurant_Menu_System {
             resolved_at datetime,
             PRIMARY KEY  (id)
         ) $charset_collate;";
+        
+        // Stock
         $stock_table = $wpdb->prefix . 'rms_stock';
-        $sql_stock = "CREATE TABLE $stock_table (
+        $sql_stock = "CREATE TABLE IF NOT EXISTS $stock_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             item_name varchar(200) NOT NULL,
             current_stock decimal(10,2) NOT NULL,
@@ -151,8 +160,10 @@ class Restaurant_Menu_System {
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
             PRIMARY KEY  (id)
         ) $charset_collate;";
+        
+        // Expenses
         $expenses_table = $wpdb->prefix . 'rms_expenses';
-        $sql_expenses = "CREATE TABLE $expenses_table (
+        $sql_expenses = "CREATE TABLE IF NOT EXISTS $expenses_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             category varchar(50) NOT NULL,
             amount decimal(10,2) NOT NULL,
@@ -164,6 +175,18 @@ class Restaurant_Menu_System {
             PRIMARY KEY  (id)
         ) $charset_collate;";
         
+        // Item Options
+        $options_table = $wpdb->prefix . 'rms_item_options';
+        $sql_options = "CREATE TABLE IF NOT EXISTS $options_table (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            item_id mediumint(9) NOT NULL,
+            option_type varchar(50) NOT NULL,
+            option_name varchar(200) NOT NULL,
+            option_price decimal(10,2) DEFAULT 0.00,
+            PRIMARY KEY  (id),
+            KEY item_id (item_id)
+        ) $charset_collate;";
+        
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_tables);
         dbDelta($sql_orders);
@@ -173,7 +196,9 @@ class Restaurant_Menu_System {
         dbDelta($sql_calls);
         dbDelta($sql_stock);
         dbDelta($sql_expenses);
+        dbDelta($sql_options);
         
+        // Default language ayarı
         $default_lang = $wpdb->get_var("SELECT setting_value FROM {$wpdb->prefix}rms_settings WHERE setting_key = 'default_language'");
         if (!$default_lang) {
             $wpdb->insert(
@@ -363,6 +388,7 @@ class Restaurant_Menu_System {
                 array($this, 'render_settings_page')
             );
         }
+        
         if (current_user_can('view_restaurant_reports')) {
             add_submenu_page(
                 'restaurant-menu',
@@ -373,6 +399,7 @@ class Restaurant_Menu_System {
                 array($this, 'render_reports_page')
             );
         }
+        
         if (current_user_can('manage_restaurant_menu')) {
             add_submenu_page(
                 'restaurant-menu',
@@ -383,6 +410,7 @@ class Restaurant_Menu_System {
                 array($this, 'render_stock_page')
             );
         }
+        
         if (current_user_can('manage_restaurant_menu')) {
             add_submenu_page(
                 'restaurant-menu',
@@ -418,15 +446,19 @@ class Restaurant_Menu_System {
     public function render_settings_page() {
         echo '<div class="wrap"><div id="rms-settings-root"></div></div>';
     }
+    
     public function render_reports_page() {
         echo '<div class="wrap"><div id="rms-reports-root"></div></div>';
     }
+    
     public function render_stock_page() {
         echo '<div class="wrap"><div id="rms-stock-root"></div></div>';
     }
+    
     public function render_expenses_page() {
         echo '<div class="wrap"><div id="rms-expenses-root"></div></div>';
     }
+    
     public function enqueue_admin_scripts($hook) {
         if ('toplevel_page_restaurant-menu' === $hook) {
             wp_enqueue_style(
@@ -526,20 +558,7 @@ class Restaurant_Menu_System {
                 'nonce' => wp_create_nonce('rms_nonce'),
             ));
         }
-        if ('restaurant-menu_page_rms-settings' === $hook) {
-            wp_enqueue_script(
-                'rms-settings',
-                RMS_URL . 'build/settings.js',
-                array('wp-element'),
-                RMS_VERSION,
-                true
-            );
-            
-            wp_localize_script('rms-settings', 'rmsAdmin', array(
-                'ajaxUrl' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('rms_nonce'),
-            ));
-        }
+        
         if ('restaurant-menu_page_rms-reports' === $hook) {
             wp_enqueue_script(
                 'rms-reports',
@@ -554,7 +573,7 @@ class Restaurant_Menu_System {
                 'nonce' => wp_create_nonce('rms_nonce'),
             ));
         }
-        // Stock için script yükleme
+        
         if ('restaurant-menu_page_rms-stock' === $hook) {
             wp_enqueue_script(
                 'rms-stock',
@@ -569,7 +588,7 @@ class Restaurant_Menu_System {
                 'nonce' => wp_create_nonce('rms_nonce'),
             ));
         }
-        // Expenses için script yükleme
+        
         if ('restaurant-menu_page_rms-expenses' === $hook) {
             wp_enqueue_script(
                 'rms-expenses',
@@ -594,7 +613,6 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_get_categories', array($this, 'ajax_get_categories'));
         add_action('wp_ajax_rms_save_category', array($this, 'ajax_save_category'));
         add_action('wp_ajax_rms_delete_category', array($this, 'ajax_delete_category'));
-        add_action('wp_ajax_rms_update_category_order', array($this, 'ajax_update_category_order'));
         add_action('wp_ajax_rms_get_tables', array($this, 'ajax_get_tables'));
         add_action('wp_ajax_rms_add_table', array($this, 'ajax_add_table'));
         add_action('wp_ajax_rms_delete_table', array($this, 'ajax_delete_table'));
@@ -626,6 +644,11 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_get_expenses', array($this, 'ajax_get_expenses'));
         add_action('wp_ajax_rms_save_expense', array($this, 'ajax_save_expense'));
         add_action('wp_ajax_rms_delete_expense', array($this, 'ajax_delete_expense'));
+        add_action('wp_ajax_rms_update_category_order', array($this, 'ajax_update_category_order'));
+        add_action('wp_ajax_rms_get_item_options', array($this, 'ajax_get_item_options'));
+        add_action('wp_ajax_rms_save_item_option', array($this, 'ajax_save_item_option'));
+        add_action('wp_ajax_rms_delete_item_option', array($this, 'ajax_delete_item_option'));
+        add_action('wp_ajax_nopriv_rms_get_item_options', array($this, 'ajax_get_item_options'));
     }
     
     public function ajax_get_current_user() {
@@ -782,38 +805,36 @@ class Restaurant_Menu_System {
     }
     
     public function ajax_get_categories() {
-    $this->check_user_capability('manage_restaurant_categories');
-    check_ajax_referer('rms_nonce', 'nonce');
-    
-    $terms = get_terms(array(
-        'taxonomy' => 'rms_category',
-        'hide_empty' => false,
-    ));
-    
-    if (is_wp_error($terms)) {
-        wp_send_json_success(array());
-        return;
+        $this->check_user_capability('manage_restaurant_categories');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        $terms = get_terms(array(
+            'taxonomy' => 'rms_category',
+            'hide_empty' => false,
+            'meta_key' => 'display_order',
+            'orderby' => 'meta_value_num',
+            'order' => 'ASC',
+        ));
+        
+        if (is_wp_error($terms)) {
+            wp_send_json_success(array());
+            return;
+        }
+        
+        $categories = array();
+        foreach ($terms as $term) {
+            $display_order = get_term_meta($term->term_id, 'display_order', true);
+            $categories[] = array(
+                'id' => $term->term_id,
+                'name' => $term->name,
+                'slug' => $term->slug,
+                'count' => $term->count,
+                'display_order' => $display_order ? intval($display_order) : 0,
+            );
+        }
+        
+        wp_send_json_success($categories);
     }
-    
-    $categories = array();
-    foreach ($terms as $term) {
-        $display_order = get_term_meta($term->term_id, 'display_order', true);
-        $categories[] = array(
-            'id' => $term->term_id,
-            'name' => $term->name,
-            'slug' => $term->slug,
-            'count' => $term->count,
-            'display_order' => $display_order ? intval($display_order) : 0
-        );
-    }
-    
-    // Sort by display_order
-    usort($categories, function($a, $b) {
-        return ($a['display_order'] ?? 0) - ($b['display_order'] ?? 0);
-    });
-    
-    wp_send_json_success($categories);
-}
     
     public function ajax_save_category() {
         $this->check_user_capability('manage_restaurant_categories');
@@ -858,6 +879,7 @@ class Restaurant_Menu_System {
             wp_send_json_success();
         }
     }
+    
     public function ajax_update_category_order() {
         $this->check_user_capability('manage_restaurant_categories');
         check_ajax_referer('rms_nonce', 'nonce');
@@ -875,6 +897,7 @@ class Restaurant_Menu_System {
         
         wp_send_json_success();
     }
+    
     public function ajax_get_tables() {
         $this->check_user_capability('manage_restaurant_qrcodes');
         check_ajax_referer('rms_nonce', 'nonce');
@@ -1281,6 +1304,7 @@ class Restaurant_Menu_System {
             wp_send_json_error('Order not found');
         }
     }
+    
     public function ajax_get_menu_by_language() {
         global $wpdb;
         $language = isset($_GET['lang']) ? sanitize_text_field($_GET['lang']) : 'en';
@@ -1290,6 +1314,9 @@ class Restaurant_Menu_System {
         $categories = get_terms(array(
             'taxonomy' => 'rms_category',
             'hide_empty' => true,
+            'meta_key' => 'display_order',
+            'orderby' => 'meta_value_num',
+            'order' => 'ASC',
         ));
         
         $menu_data = array();
@@ -1349,6 +1376,7 @@ class Restaurant_Menu_System {
             if (!empty($items)) {
                 $menu_data[] = array(
                     'category' => $category_name,
+                    'category_id' => $category->term_id,
                     'items' => $items,
                 );
             }
@@ -1446,7 +1474,6 @@ class Restaurant_Menu_System {
                 array('%d')
             );
             
-            // Update her zaman 0 veya 1 döner, false kontrolü yanlış
             if ($result !== false) {
                 wp_send_json_success(array('message' => 'Stock updated'));
             } else {
@@ -1486,6 +1513,7 @@ class Restaurant_Menu_System {
             wp_send_json_error();
         }
     }
+    
     public function ajax_get_expenses() {
         $this->check_user_capability('manage_restaurant_menu');
         check_ajax_referer('rms_nonce', 'nonce');
@@ -1566,6 +1594,84 @@ class Restaurant_Menu_System {
         }
     }
     
+    public function ajax_get_item_options() {
+        global $wpdb;
+        $options_table = $wpdb->prefix . 'rms_item_options';
+        $item_id = intval($_POST['item_id']);
+        
+        $options = $wpdb->get_results(
+            $wpdb->prepare("SELECT * FROM $options_table WHERE item_id = %d", $item_id),
+            ARRAY_A
+        );
+        
+        $grouped = array();
+        foreach ($options as $option) {
+            $type = $option['option_type'];
+            if (!isset($grouped[$type])) {
+                $grouped[$type] = array();
+            }
+            $grouped[$type][] = $option;
+        }
+        
+        wp_send_json_success($grouped);
+    }
+    
+    public function ajax_save_item_option() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $options_table = $wpdb->prefix . 'rms_item_options';
+        
+        $data = array(
+            'item_id' => intval($_POST['item_id']),
+            'option_type' => sanitize_text_field($_POST['option_type']),
+            'option_name' => sanitize_text_field($_POST['option_name']),
+            'option_price' => floatval($_POST['option_price'])
+        );
+        
+        if (!empty($_POST['id'])) {
+            $result = $wpdb->update(
+                $options_table,
+                $data,
+                array('id' => intval($_POST['id'])),
+                array('%d', '%s', '%s', '%f'),
+                array('%d')
+            );
+        } else {
+            $result = $wpdb->insert(
+                $options_table,
+                $data,
+                array('%d', '%s', '%s', '%f')
+            );
+        }
+        
+        if ($result !== false) {
+            wp_send_json_success(array('id' => !empty($_POST['id']) ? intval($_POST['id']) : $wpdb->insert_id));
+        } else {
+            wp_send_json_error('Database error');
+        }
+    }
+    
+    public function ajax_delete_item_option() {
+        $this->check_user_capability('manage_restaurant_menu');
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        global $wpdb;
+        $options_table = $wpdb->prefix . 'rms_item_options';
+        
+        $result = $wpdb->delete(
+            $options_table,
+            array('id' => intval($_POST['id'])),
+            array('%d')
+        );
+        
+        if ($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error();
+        }
+    }
 }
 
 Restaurant_Menu_System::get_instance();
