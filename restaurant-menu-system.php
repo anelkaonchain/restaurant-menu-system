@@ -648,7 +648,6 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_get_item_options', array($this, 'ajax_get_item_options'));
         add_action('wp_ajax_rms_save_item_option', array($this, 'ajax_save_item_option'));
         add_action('wp_ajax_rms_delete_item_option', array($this, 'ajax_delete_item_option'));
-        add_action('wp_ajax_nopriv_rms_get_item_options', array($this, 'ajax_get_item_options'));
     }
     
     public function ajax_get_current_user() {
