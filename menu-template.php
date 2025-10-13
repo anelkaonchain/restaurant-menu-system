@@ -6,7 +6,6 @@
 
 // Get all menu items grouped by category
 function rms_get_grouped_menu_items() {
-    // DEĞIŞIKLIK 1: WordPress Post Type sistemi kullan (custom table değil)
     $categories = get_terms(array(
         'taxonomy' => 'rms_category',
         'hide_empty' => true,
@@ -43,7 +42,6 @@ function rms_get_grouped_menu_items() {
             $query->the_post();
             $post_id = get_the_ID();
             
-            // DEĞIŞIKLIK 2: Ürün seçeneklerini çek
             global $wpdb;
             $options_table = $wpdb->prefix . 'rms_item_options';
             $options = $wpdb->get_results($wpdb->prepare(
@@ -202,6 +200,79 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         
         .language-option:last-child {
             border-bottom: none;
+        }
+        
+        /* ARAMA KUTUSU STİLLERİ */
+        .search-container {
+            padding: 20px 30px;
+            background: white;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .search-box {
+            position: relative;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 15px 50px 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 50px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+        
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+            color: #999;
+            pointer-events: none;
+        }
+        
+        .clear-search {
+            position: absolute;
+            right: 55px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .clear-search.visible {
+            display: flex;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 60px 30px;
+            color: #999;
+        }
+        
+        .no-results h3 {
+            color: #666;
+            margin-bottom: 10px;
         }
         
         .menu-content {
@@ -540,7 +611,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             color: #868e96;
         }
 
-        /* DEĞIŞIKLIK 3: Item Options Modal Stilleri */
         .item-detail-modal .modal-content {
             max-width: 500px;
         }
@@ -701,6 +771,10 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 bottom: 90px;
                 min-width: auto;
             }
+            
+            .search-container {
+                padding: 15px 20px;
+            }
         }
     </style>
 </head>
@@ -722,7 +796,22 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             <?php endif; ?>
         </div>
         
-        <div class="menu-content">
+        <!-- ARAMA KUTUSU -->
+        <div class="search-container">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input" 
+                    placeholder="🔍 Search menu items..."
+                    autocomplete="off"
+                >
+                <button class="clear-search" id="clearSearch">×</button>
+                <span class="search-icon">🔍</span>
+            </div>
+        </div>
+        
+        <div class="menu-content" id="menuContent">
             <?php if (empty($menu_data)): ?>
                 <div style="padding: 60px 30px; text-align: center; color: #999;">
                     <h2 style="color: #999; margin-bottom: 10px;">Menu Coming Soon</h2>
@@ -780,7 +869,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         <div class="status-step pending" id="statusDelivered">🎉 Delivered</div>
     </div>
     
-    <!-- DEĞIŞIKLIK 4: Item Detail Modal -->
     <div class="modal item-detail-modal" id="itemDetailModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -811,7 +899,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         </div>
     </div>
 
-    <!-- Cart Modal -->
     <div class="modal" id="cartModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -855,6 +942,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         let currentOrderId = localStorage.getItem('currentOrderId_' + tableNumber);
         let currentItem = null;
         let selectedOptions = [];
+        let searchTimer = null;
         
         const languages = {
             'tr': 'Türkçe',
@@ -889,7 +977,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             'fa': 'فارسی'
         };
         
-        // Initialize language dropdown
         window.onload = function() {
             const dropdown = document.getElementById('languageDropdown');
             let html = '';
@@ -898,10 +985,11 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             }
             dropdown.innerHTML = html;
             
-            // Start order tracking if order exists
             if (currentOrderId) {
                 startOrderTracking();
             }
+            
+            setTimeout(initializeSearch, 500);
         };
         
         function toggleLanguageDropdown() {
@@ -913,13 +1001,11 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             document.getElementById('currentLanguage').textContent = languages[langCode];
             document.getElementById('languageDropdown').classList.remove('active');
             
-            // Update selected state
             document.querySelectorAll('.language-option').forEach(opt => {
                 opt.classList.remove('selected');
             });
             event.target.classList.add('selected');
             
-            // Load menu in selected language
             if (langCode === 'en') {
                 renderMenu(menuData);
             } else {
@@ -937,7 +1023,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         }
         
         function renderMenu(data) {
-            const menuContent = document.querySelector('.menu-content');
+            const menuContent = document.getElementById('menuContent');
             if (!data || data.length === 0) {
                 menuContent.innerHTML = '<div style="padding: 60px 30px; text-align: center; color: #999;"><h2>Menu Coming Soon</h2></div>';
                 return;
@@ -964,9 +1050,13 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 html += '</div>';
             });
             menuContent.innerHTML = html;
+            
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput && searchInput.value) {
+                performSearch(searchInput.value.toLowerCase());
+            }
         }
         
-        // Close dropdown when clicking outside
         document.addEventListener('click', function(event) {
             const selector = document.querySelector('.language-selector');
             if (selector && !selector.contains(event.target)) {
@@ -974,7 +1064,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             }
         });
 
-        // DEĞIŞIKLIK 5: Item Modal Fonksiyonları (window objesine ekle)
         window.openItemModal = function(item) {
             currentItem = item;
             selectedOptions = [];
@@ -984,7 +1073,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             document.getElementById('modalItemPrice').textContent = '$' + parseFloat(item.price).toFixed(2);
             document.getElementById('modalTotalPrice').textContent = '$' + parseFloat(item.price).toFixed(2);
             
-            // Image
             const modalImage = document.getElementById('modalItemImage');
             if (item.image) {
                 modalImage.src = item.image;
@@ -993,7 +1081,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 modalImage.style.display = 'none';
             }
             
-            // Description
             const descElement = document.getElementById('modalItemDescription');
             if (item.description) {
                 descElement.textContent = item.description;
@@ -1002,7 +1089,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 descElement.style.display = 'none';
             }
             
-            // Allergens
             const allergenElement = document.getElementById('modalItemAllergens');
             if (item.allergens) {
                 allergenElement.textContent = '⚠️ Contains: ' + item.allergens;
@@ -1011,7 +1097,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 allergenElement.style.display = 'none';
             }
             
-            // Options
             const optionsSection = document.getElementById('optionsSection');
             const optionsList = document.getElementById('optionsList');
             
@@ -1044,11 +1129,9 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             const optionIndex = selectedOptions.findIndex(opt => opt.id === optionId);
             
             if (optionIndex > -1) {
-                // Remove option
                 selectedOptions.splice(optionIndex, 1);
                 event.target.closest('.option-item').classList.remove('selected');
             } else {
-                // Add option
                 selectedOptions.push({
                     id: optionId,
                     option_name: optionName,
@@ -1134,7 +1217,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             cart.forEach(item => {
                 const itemTotal = item.price * item.quantity;
                 
-                // Calculate options total
                 let optionsTotal = 0;
                 if (item.selectedOptions && item.selectedOptions.length > 0) {
                     item.selectedOptions.forEach(opt => {
@@ -1247,7 +1329,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             document.getElementById('orderNotes').value = '';
         }
         
-        // Call waiter function
         document.getElementById('callWaiterBtn')?.addEventListener('click', async function() {
             const btn = this;
             const originalText = btn.textContent;
@@ -1286,7 +1367,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             }
         });
         
-        // Notification system
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
@@ -1298,7 +1378,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             }, 3000);
         }
         
-        // Order tracking
         function startOrderTracking() {
             if (!currentOrderId) return;
 
@@ -1317,7 +1396,6 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 }
             };
 
-            // Check every 10 seconds
             setInterval(checkStatus, 10000);
             checkStatus();
         }
@@ -1325,12 +1403,10 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         let lastNotifiedStatus = null;
 
         function updateOrderStatus(status) {
-            // Reset all statuses
             document.querySelectorAll('.status-step').forEach(el => {
                 el.className = 'status-step pending';
             });
 
-            // Update based on current status
             if (status === 'pending') {
                 document.getElementById('statusPending').className = 'status-step active';
             } else if (status === 'preparing') {
@@ -1365,6 +1441,144 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 setTimeout(() => {
                     document.getElementById('orderStatusTracker').classList.remove('active');
                 }, 5000);
+            }
+        }
+        
+        // ==================== ARAMA FONKSİYONLARI ====================
+        
+        function initializeSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const clearButton = document.getElementById('clearSearch');
+            
+            if (!searchInput) {
+                console.error('Search input not found');
+                return;
+            }
+            
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.trim().toLowerCase();
+                
+                if (searchTimer) {
+                    clearTimeout(searchTimer);
+                }
+                
+                if (searchTerm.length > 0) {
+                    clearButton.classList.add('visible');
+                    searchTimer = setTimeout(() => {
+                        performSearch(searchTerm);
+                    }, 300);
+                } else {
+                    clearButton.classList.remove('visible');
+                    showAllItems();
+                }
+            });
+            
+            clearButton.addEventListener('click', function() {
+                searchInput.value = '';
+                clearButton.classList.remove('visible');
+                showAllItems();
+                searchInput.focus();
+            });
+            
+            console.log('Search initialized successfully');
+        }
+        
+        function performSearch(searchTerm) {
+            console.log('Searching for:', searchTerm);
+            
+            const menuContent = document.getElementById('menuContent');
+            if (!menuContent) return;
+            
+            const categories = menuContent.querySelectorAll('.category');
+            let foundCount = 0;
+            
+            categories.forEach(category => {
+                const categoryTitle = category.querySelector('.category-title').textContent.toLowerCase();
+                const items = category.querySelectorAll('.menu-item');
+                let categoryHasVisibleItems = false;
+                
+                items.forEach(item => {
+                    const itemName = item.querySelector('.item-name')?.textContent.toLowerCase() || '';
+                    const itemDesc = item.querySelector('.item-description')?.textContent.toLowerCase() || '';
+                    
+                    const matches = itemName.includes(searchTerm) || 
+                                  itemDesc.includes(searchTerm) || 
+                                  categoryTitle.includes(searchTerm);
+                    
+                    if (matches) {
+                        item.style.display = 'flex';
+                        categoryHasVisibleItems = true;
+                        foundCount++;
+                        highlightSearchTerm(item, searchTerm);
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+                
+                category.style.display = categoryHasVisibleItems ? 'block' : 'none';
+            });
+            
+            if (foundCount === 0) {
+                showNoResults();
+            } else {
+                removeNoResults();
+            }
+            
+            console.log('Found', foundCount, 'items');
+        }
+        
+        function highlightSearchTerm(item, searchTerm) {
+            const itemName = item.querySelector('.item-name');
+            if (itemName) {
+                const originalText = itemName.textContent;
+                const regex = new RegExp(`(${searchTerm})`, 'gi');
+                const highlightedText = originalText.replace(regex, '<mark style="background: #fff3cd; padding: 2px 4px; border-radius: 3px;">$1</mark>');
+                
+                if (originalText.toLowerCase().includes(searchTerm)) {
+                    itemName.innerHTML = highlightedText;
+                }
+            }
+        }
+        
+        function showAllItems() {
+            const menuContent = document.getElementById('menuContent');
+            if (!menuContent) return;
+            
+            menuContent.querySelectorAll('mark').forEach(mark => {
+                mark.outerHTML = mark.textContent;
+            });
+            
+            menuContent.querySelectorAll('.category').forEach(category => {
+                category.style.display = 'block';
+            });
+            
+            menuContent.querySelectorAll('.menu-item').forEach(item => {
+                item.style.display = 'flex';
+            });
+            
+            removeNoResults();
+        }
+        
+        function showNoResults() {
+            removeNoResults();
+            
+            const menuContent = document.getElementById('menuContent');
+            const noResultsDiv = document.createElement('div');
+            noResultsDiv.className = 'no-results';
+            noResultsDiv.id = 'noResultsMessage';
+            noResultsDiv.innerHTML = `
+                <div style="font-size: 64px; margin-bottom: 20px;">🔍</div>
+                <h3 style="color: #666; margin-bottom: 10px; font-size: 24px;">No items found</h3>
+                <p style="color: #999; font-size: 16px;">Try searching with different keywords</p>
+            `;
+            
+            menuContent.insertBefore(noResultsDiv, menuContent.firstChild);
+        }
+        
+        function removeNoResults() {
+            const noResults = document.getElementById('noResultsMessage');
+            if (noResults) {
+                noResults.remove();
             }
         }
     </script>
