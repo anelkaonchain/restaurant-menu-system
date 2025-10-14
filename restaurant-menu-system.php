@@ -648,6 +648,7 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_get_item_options', array($this, 'ajax_get_item_options'));
         add_action('wp_ajax_rms_save_item_option', array($this, 'ajax_save_item_option'));
         add_action('wp_ajax_rms_delete_item_option', array($this, 'ajax_delete_item_option'));
+
     }
     
     public function ajax_get_current_user() {
@@ -701,6 +702,7 @@ class Restaurant_Menu_System {
                 'name' => get_the_title(),
                 'description' => get_the_content(),
                 'price' => get_post_meta($post_id, '_rms_price', true),
+                'discounted_price' => get_post_meta($post_id, '_rms_discounted_price', true),
                 'allergens' => get_post_meta($post_id, '_rms_allergens', true),
                 'image' => get_post_meta($post_id, '_rms_image', true),
                 'category' => $category_id,
@@ -737,6 +739,7 @@ class Restaurant_Menu_System {
                 'name' => get_the_title(),
                 'description' => get_the_content(),
                 'price' => get_post_meta($post_id, '_rms_price', true),
+                'discounted_price' => get_post_meta($post_id, '_rms_discounted_price', true),
                 'allergens' => get_post_meta($post_id, '_rms_allergens', true),
                 'image' => get_post_meta($post_id, '_rms_image', true),
                 'category' => $category_id,
@@ -755,6 +758,7 @@ class Restaurant_Menu_System {
         $name = sanitize_text_field($_POST['name']);
         $description = sanitize_textarea_field($_POST['description']);
         $price = floatval($_POST['price']);
+        $discounted_price = !empty($_POST['discounted_price']) ? floatval($_POST['discounted_price']) : '';
         $allergens = sanitize_text_field($_POST['allergens']);
         $category = !empty($_POST['category']) ? intval($_POST['category']) : 0;
         $image = !empty($_POST['image']) ? esc_url_raw($_POST['image']) : '';
@@ -775,6 +779,7 @@ class Restaurant_Menu_System {
         
         if ($post_id) {
             update_post_meta($post_id, '_rms_price', $price);
+            update_post_meta($post_id, '_rms_discounted_price', $discounted_price);
             update_post_meta($post_id, '_rms_allergens', $allergens);
             update_post_meta($post_id, '_rms_image', $image);
             

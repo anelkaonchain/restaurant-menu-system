@@ -17,6 +17,7 @@ function AdminApp() {
         name: '',
         description: '',
         price: '',
+        discounted_price: '',
         allergens: '',
         category: '',
         image: ''
@@ -97,6 +98,7 @@ function AdminApp() {
         formDataObj.append('name', formData.name);
         formDataObj.append('description', formData.description);
         formDataObj.append('price', formData.price);
+        formDataObj.append('discounted_price', formData.discounted_price);
         formDataObj.append('allergens', formData.allergens);
         formDataObj.append('category', formData.category);
         formDataObj.append('image', formData.image);
@@ -114,7 +116,7 @@ function AdminApp() {
             if (data.success) {
                 setMessage({ type: 'success', text: 'Menu item saved successfully!' });
                 setShowForm(false);
-                setFormData({ name: '', description: '', price: '', allergens: '', category: '', image: '' });
+                setFormData({ name: '', description: '', price: '', discounted_price: '', allergens: '', category: '', image: '' });
                 setEditingId(null);
                 await loadItems();
             } else {
@@ -133,6 +135,7 @@ function AdminApp() {
             name: item.name,
             description: item.description,
             price: item.price,
+            discounted_price: item.discounted_price || '',
             allergens: item.allergens || '',
             category: item.category || '',
             image: item.image || ''
@@ -173,7 +176,7 @@ function AdminApp() {
     const handleCancel = () => {
         setShowForm(false);
         setEditingId(null);
-        setFormData({ name: '', description: '', price: '', allergens: '', category: '', image: '' });
+        setFormData({ name: '', description: '', price: '', discounted_price: '', allergens: '', category: '', image: '' });
     };
     
     const handleImageUpload = async (e) => {
@@ -222,6 +225,7 @@ function AdminApp() {
     };
 
     return (
+
         <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '0 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <h1 style={{ margin: 0 }}>{t('menu_items.title')}</h1>
@@ -292,7 +296,7 @@ function AdminApp() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                         <div>
                             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                                {t('menu_items.item_price')} *
+                                Regular Price * 💵
                             </label>
                             <input
                                 type="number"
@@ -307,22 +311,37 @@ function AdminApp() {
 
                         <div>
                             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                                {t('menu_items.category')}
+                                Discounted Price 🏷️ <span style={{ color: '#999', fontWeight: 'normal', fontSize: '13px' }}>(Optional)</span>
                             </label>
-                            <select
+                            <input
+                                type="number"
+                                step="0.01"
                                 className="regular-text"
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                value={formData.discounted_price}
+                                onChange={(e) => setFormData({ ...formData, discounted_price: e.target.value })}
+                                placeholder="Leave empty for no discount"
                                 style={{ width: '100%', padding: '8px' }}
-                            >
-                                <option value="">{t('menu_items.select_category')}</option>
-                                {categories
-                                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                                    .map(cat => (
-                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                    ))}
-                            </select>
+                            />
                         </div>
+                    </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                            {t('menu_items.category')}
+                        </label>
+                        <select
+                            className="regular-text"
+                            value={formData.category}
+                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                            style={{ width: '100%', padding: '8px' }}
+                        >
+                            <option value="">{t('menu_items.select_category')}</option>
+                            {categories
+                                .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                                .map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))}
+                        </select>
                     </div>
 
                     <div style={{ marginBottom: '20px' }}>
@@ -459,8 +478,34 @@ function AdminApp() {
                                                     <p style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>
                                                         {item.description || 'No description'}
                                                     </p>
-                                                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#27ae60' }}>
-                                                        ${item.price}
+                                                    <div>
+                                                        {item.discounted_price && parseFloat(item.discounted_price) > 0 ? (
+                                                            <>
+                                                                <div style={{ fontSize: '14px', color: '#999', textDecoration: 'line-through', marginBottom: '5px' }}>
+                                                                    ${parseFloat(item.price).toFixed(2)}
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#e74c3c' }}>
+                                                                        ${parseFloat(item.discounted_price).toFixed(2)}
+                                                                    </span>
+                                                                    <span style={{
+                                                                        fontSize: '11px',
+                                                                        fontWeight: 'bold',
+                                                                        background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                                                                        color: 'white',
+                                                                        padding: '4px 10px',
+                                                                        borderRadius: '12px',
+                                                                        boxShadow: '0 2px 6px rgba(231, 76, 60, 0.3)'
+                                                                    }}>
+                                                                        {Math.round(((item.price - item.discounted_price) / item.price) * 100)}% OFF
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#27ae60' }}>
+                                                                ${parseFloat(item.price).toFixed(2)}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {item.allergens && (
                                                         <div style={{ marginTop: '10px', padding: '8px', background: '#fff3cd', borderRadius: '4px', fontSize: '12px' }}>
@@ -546,9 +591,35 @@ function AdminApp() {
                                             <p style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>
                                                 {item.description || 'No description'}
                                             </p>
-                                            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#27ae60' }}>
-                                                ${item.price}
-                                            </div>
+                                            <div>
+                                                        {item.discounted_price && parseFloat(item.discounted_price) > 0 ? (
+                                                            <>
+                                                                <div style={{ fontSize: '14px', color: '#999', textDecoration: 'line-through', marginBottom: '5px' }}>
+                                                                    ${parseFloat(item.price).toFixed(2)}
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#e74c3c' }}>
+                                                                        ${parseFloat(item.discounted_price).toFixed(2)}
+                                                                    </span>
+                                                                    <span style={{
+                                                                        fontSize: '11px',
+                                                                        fontWeight: 'bold',
+                                                                        background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                                                                        color: 'white',
+                                                                        padding: '4px 10px',
+                                                                        borderRadius: '12px',
+                                                                        boxShadow: '0 2px 6px rgba(231, 76, 60, 0.3)'
+                                                                    }}>
+                                                                        {Math.round(((item.price - item.discounted_price) / item.price) * 100)}% OFF
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#27ae60' }}>
+                                                                ${parseFloat(item.price).toFixed(2)}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                             {item.allergens && (
                                                 <div style={{ marginTop: '10px', padding: '8px', background: '#fff3cd', borderRadius: '4px', fontSize: '12px' }}>
                                                     Allergens: {item.allergens}

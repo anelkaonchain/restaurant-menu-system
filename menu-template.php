@@ -54,6 +54,7 @@ function rms_get_grouped_menu_items() {
                 'name' => get_the_title(),
                 'description' => get_the_content(),
                 'price' => get_post_meta($post_id, '_rms_price', true),
+                'discounted_price' => get_post_meta($post_id, '_rms_discounted_price', true),
                 'allergens' => get_post_meta($post_id, '_rms_allergens', true),
                 'image' => get_post_meta($post_id, '_rms_image', true),
                 'options' => $options,
@@ -209,6 +210,427 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             border-bottom: 1px solid #eee;
         }
         
+        /* KATEGORİ NAVİGASYONU */
+        .category-nav {
+            background: white;
+            padding: 15px 0;
+            border-bottom: 2px solid #eee;
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .category-nav-scroll {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 0 30px 10px 30px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: #667eea #f0f0f0;
+        }
+        
+        .category-nav-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .category-nav-scroll::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 10px;
+        }
+        
+        .category-nav-scroll::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
+        .category-nav-item {
+            flex-shrink: 0;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border: 2px solid transparent;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .category-nav-item:hover {
+            background: #e8ebff;
+            color: #667eea;
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        
+        .category-nav-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        /* SEPET ÖZETİ KARTI */
+        .cart-summary-card {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            width: 380px;
+            max-height: calc(100vh - 40px);
+            z-index: 1500;
+            display: none;
+            overflow: hidden;
+            animation: slideInFromRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes slideInFromRight {
+            from {
+                transform: translateX(400px) scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0) scale(1);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .cart-summary-card.visible {
+            display: block;
+        }
+        
+        .cart-summary-card.shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        .cart-summary-card.minimized {
+            height: auto;
+            max-height: 80px;
+        }
+        
+        .cart-summary-card.minimized .cart-summary-items,
+        .cart-summary-card.minimized .cart-summary-footer {
+            display: none;
+        }
+        
+        .cart-summary-minimize {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            margin-right: 8px;
+        }
+        
+        .cart-summary-minimize:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .cart-summary-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .cart-summary-title {
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .cart-summary-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .cart-summary-close:hover {
+            background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
+        }
+        
+        .cart-summary-items {
+            max-height: none;
+            overflow-y: visible;
+            padding: 15px;
+            flex-shrink: 0;
+        }
+        
+        .cart-summary-items::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .cart-summary-items::-webkit-scrollbar-track {
+            background: #f0f0f0;
+        }
+        
+        .cart-summary-items::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
+        .cart-summary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+        
+        .cart-summary-item:hover {
+            background: #e8ebff;
+            transform: translateX(-5px);
+        }
+        
+        .cart-summary-item-info {
+            flex: 1;
+        }
+        
+        .cart-summary-item-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .cart-summary-item-qty {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .cart-summary-item-price {
+            font-weight: bold;
+            color: #27ae60;
+            font-size: 16px;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .cart-summary-footer {
+            padding: 15px 20px;
+            border-top: 2px solid #eee;
+        }
+
+        .cart-summary-checkout {
+            padding: 15px 20px;
+            border-top: 2px solid #eee;
+            background: #f8f9fa;
+        }
+        
+        .cart-summary-form-group {
+            margin-bottom: 12px;
+        }
+        
+        .cart-summary-form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        
+        .cart-summary-form-group input,
+        .cart-summary-form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        .cart-summary-form-group input:focus,
+        .cart-summary-form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+        
+        .cart-summary-form-group textarea {
+            resize: none;
+            min-height: 60px;
+        }
+        
+        .cart-summary-submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .cart-summary-submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+        }
+        
+        .cart-summary-submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .cart-summary-success {
+            text-align: center;
+            padding: 30px 20px;
+        }
+        
+        .cart-summary-success-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+        }
+        
+        .cart-summary-success h3 {
+            color: #27ae60;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+        
+        .cart-summary-success p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .cart-summary-success-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .cart-summary-success-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        .cart-summary-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .cart-summary-total-label {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .cart-summary-total-amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #27ae60;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        
+        .cart-summary-btn-view:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        
+        .cart-summary-btn-clear:hover {
+            background: #e74c3c;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .cart-summary-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        
+        .cart-summary-empty-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+
+        #cartSummaryContent {
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            max-height: calc(100vh - 140px);
+        }
+        
+        #cartSummaryContent::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #cartSummaryContent::-webkit-scrollbar-track {
+            background: #f0f0f0;
+        }
+        
+        #cartSummaryContent::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
         .search-box {
             position: relative;
             max-width: 600px;
@@ -343,11 +765,49 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             flex: 1;
         }
         
+        .item-price-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+            margin-left: 15px;
+        }
+        
         .item-price {
             font-size: 20px;
             font-weight: bold;
             color: #27ae60;
-            margin-left: 15px;
+        }
+        
+        .item-price.has-discount {
+            font-size: 14px;
+            color: #999;
+            text-decoration: line-through;
+        }
+        
+        .item-discounted-price {
+            font-size: 22px;
+            font-weight: bold;
+            color: #e74c3c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .discount-badge {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(231, 76, 60, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
         }
         
         .item-description {
@@ -716,6 +1176,15 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             font-weight: bold;
         }
         
+        /* YEŞİL CHECKOUT BUTONU VE KIRMIZI BADGE GİZLE */
+        .checkout-btn {
+            display: none !important;
+        }
+        
+        .cart-badge {
+            display: none !important;
+        }
+
         @media (max-width: 600px) {
             body {
                 padding: 10px;
@@ -775,6 +1244,19 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             .search-container {
                 padding: 15px 20px;
             }
+            
+            .category-nav {
+                padding: 10px 0;
+            }
+            
+            .category-nav-scroll {
+                padding: 0 20px 8px 20px;
+            }
+            
+            .category-nav-item {
+                font-size: 14px;
+                padding: 8px 16px;
+            }
         }
     </style>
 </head>
@@ -811,6 +1293,11 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             </div>
         </div>
         
+        <!-- KATEGORİ NAVİGASYONU -->
+        <div class="category-nav" id="categoryNav" style="display: none;">
+            <div class="category-nav-scroll" id="categoryNavScroll"></div>
+        </div>
+        
         <div class="menu-content" id="menuContent">
             <?php if (empty($menu_data)): ?>
                 <div style="padding: 60px 30px; text-align: center; color: #999;">
@@ -819,7 +1306,10 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 </div>
             <?php else: ?>
                 <?php foreach ($menu_data as $section): ?>
-                    <div class="category">
+                    <?php 
+                    $category_id = 'category-' . sanitize_title($section['category']);
+                    ?>
+                    <div class="category" id="<?php echo esc_attr($category_id); ?>">
                         <h2 class="category-title"><?php echo esc_html($section['category']); ?></h2>
                         
                         <?php foreach ($section['items'] as $item): ?>
@@ -830,9 +1320,24 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                                 
                                 <div class="item-content">
                                     <div class="item-header">
-                                        <div class="item-name"><?php echo esc_html($item['name']); ?></div>
-                                        <div class="item-price">$<?php echo esc_html(number_format($item['price'], 2)); ?></div>
+                                    <div class="item-name"><?php echo esc_html($item['name']); ?></div>
+                                    <div class="item-price-wrapper">
+                                        <?php if (!empty($item['discounted_price']) && $item['discounted_price'] > 0): ?>
+                                            <div class="item-price has-discount">$<?php echo esc_html(number_format($item['price'], 2)); ?></div>
+                                            <div class="item-discounted-price">
+                                                $<?php echo esc_html(number_format($item['discounted_price'], 2)); ?>
+                                                <span class="discount-badge">
+                                                    <?php 
+                                                        $discount_percent = round((($item['price'] - $item['discounted_price']) / $item['price']) * 100);
+                                                        echo $discount_percent . '% OFF';
+                                                    ?>
+                                                </span>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="item-price">$<?php echo esc_html(number_format($item['price'], 2)); ?></div>
+                                        <?php endif; ?>
                                     </div>
+                                </div>
                                     
                                     <?php if (!empty($item['description'])): ?>
                                         <div class="item-description"><?php echo esc_html($item['description']); ?></div>
@@ -899,6 +1404,57 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         </div>
     </div>
 
+    <!-- SEPET ÖZETİ KARTI -->
+    <div class="cart-summary-card" id="cartSummaryCard">
+        <div class="cart-summary-header">
+            <div class="cart-summary-title">
+                🛒 <span id="cartSummaryCount">0</span> Items
+            </div>
+            <button class="cart-summary-minimize" onclick="toggleMinimizeCart()" id="minimizeBtn">−</button>
+        </div>
+        
+        <div id="cartSummaryContent">
+            <div class="cart-summary-items" id="cartSummaryItems">
+                <div class="cart-summary-empty">
+                    <div class="cart-summary-empty-icon">🛒</div>
+                    <p>Your cart is empty</p>
+                </div>
+            </div>
+            
+            <div class="cart-summary-footer" id="cartSummaryFooter" style="display: none;">
+                <div class="cart-summary-total">
+                    <span class="cart-summary-total-label">Total:</span>
+                    <span class="cart-summary-total-amount">$<span id="cartSummaryTotal">0.00</span></span>
+                </div>
+            </div>
+            
+            <div class="cart-summary-checkout" id="cartSummaryCheckout" style="display: none;">
+                <div class="cart-summary-form-group">
+                    <label>Your Name (Optional)</label>
+                    <input type="text" id="cartSummaryName" placeholder="Enter your name">
+                </div>
+                <div class="cart-summary-form-group">
+                    <label>Special Requests (Optional)</label>
+                    <textarea id="cartSummaryNotes" placeholder="Any special requests?"></textarea>
+                </div>
+                <button class="cart-summary-submit-btn" onclick="submitOrderFromCard()">
+                    📤 Place Order
+                </button>
+            </div>
+            
+            <div class="cart-summary-success" id="cartSummarySuccess" style="display: none;">
+                <div class="cart-summary-success-icon">✅</div>
+                <h3>Order Submitted!</h3>
+                <p>Your order has been received. We'll prepare it shortly.</p>
+                <button class="cart-summary-success-btn" onclick="closeSuccessMessage()">
+                    Continue Browsing
+                </button>
+            </div>
+        </div>
+    </div>
+        
+        
+
     <div class="modal" id="cartModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -943,6 +1499,11 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         let currentItem = null;
         let selectedOptions = [];
         let searchTimer = null;
+        let cartSummaryTimeout = null;
+        let isCartSummaryHovered = false;
+        let isCartSummaryMinimized = false;
+        let isCartFirstOpen = true;
+        
         
         const languages = {
             'tr': 'Türkçe',
@@ -990,6 +1551,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             }
             
             setTimeout(initializeSearch, 500);
+            setTimeout(initializeCategoryNav, 600);
         };
         
         function toggleLanguageDropdown() {
@@ -1031,7 +1593,8 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             
             let html = '';
             data.forEach(section => {
-                html += `<div class="category"><h2 class="category-title">${section.category}</h2>`;
+                const categoryId = 'category-' + section.category.toLowerCase().replace(/\s+/g, '-');
+                html += `<div class="category" id="${categoryId}"><h2 class="category-title">${section.category}</h2>`;
                 section.items.forEach(item => {
                     html += `
                         <div class="menu-item" onclick='openItemModal(${JSON.stringify(item).replace(/'/g, "&#39;")})'> 
@@ -1039,7 +1602,7 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                             <div class="item-content">
                                 <div class="item-header">
                                     <div class="item-name">${item.name}</div>
-                                    <div class="item-price">$${parseFloat(item.price).toFixed(2)}</div>
+                                    <div class="item-price">${parseFloat(item.price).toFixed(2)}</div>
                                 </div>
                                 ${item.description ? `<div class="item-description">${item.description}</div>` : ''}
                                 ${item.allergens ? `<div class="item-allergens">⚠️ Contains: ${item.allergens}</div>` : ''}
@@ -1050,6 +1613,8 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 html += '</div>';
             });
             menuContent.innerHTML = html;
+            
+            initializeCategoryNav();
             
             const searchInput = document.getElementById('searchInput');
             if (searchInput && searchInput.value) {
@@ -1070,8 +1635,28 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             
             document.getElementById('modalItemName').textContent = item.name;
             document.getElementById('modalItemNameLarge').textContent = item.name;
-            document.getElementById('modalItemPrice').textContent = '$' + parseFloat(item.price).toFixed(2);
-            document.getElementById('modalTotalPrice').textContent = '$' + parseFloat(item.price).toFixed(2);
+            
+            const displayPrice = (item.discounted_price && parseFloat(item.discounted_price) > 0) 
+                ? parseFloat(item.discounted_price) 
+                : parseFloat(item.price);
+            
+            const priceElement = document.getElementById('modalItemPrice');
+            if (item.discounted_price && parseFloat(item.discounted_price) > 0) {
+                const discountPercent = Math.round(((item.price - item.discounted_price) / item.price) * 100);
+                priceElement.innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 5px;">
+                        <div style="font-size: 18px; color: #999; text-decoration: line-through;">$${parseFloat(item.price).toFixed(2)}</div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 28px; font-weight: bold; color: #e74c3c;">$${parseFloat(item.discounted_price).toFixed(2)}</span>
+                            <span class="discount-badge">${discountPercent}% OFF</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                priceElement.textContent = '$' + displayPrice.toFixed(2);
+            }
+            
+            document.getElementById('modalTotalPrice').textContent = '$' + displayPrice.toFixed(2);
             
             const modalImage = document.getElementById('modalItemImage');
             if (item.image) {
@@ -1146,7 +1731,11 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         window.updateModalTotal = function() {
             if (!currentItem) return;
             
-            let total = parseFloat(currentItem.price);
+            const basePrice = (currentItem.discounted_price && parseFloat(currentItem.discounted_price) > 0) 
+                ? parseFloat(currentItem.discounted_price) 
+                : parseFloat(currentItem.price);
+            
+            let total = basePrice;
             selectedOptions.forEach(opt => {
                 total += parseFloat(opt.option_price);
             });
@@ -1159,11 +1748,17 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             
             const uniqueId = currentItem.id + '_' + Date.now() + '_' + Math.random();
             
+            const itemPrice = (currentItem.discounted_price && parseFloat(currentItem.discounted_price) > 0) 
+                ? parseFloat(currentItem.discounted_price) 
+                : parseFloat(currentItem.price);
+            
             cart.push({
                 uniqueId: uniqueId,
                 id: currentItem.id,
                 name: currentItem.name,
-                price: currentItem.price,
+                price: itemPrice,
+                original_price: parseFloat(currentItem.price),
+                discounted_price: currentItem.discounted_price,
                 quantity: 1,
                 selectedOptions: [...selectedOptions]
             });
@@ -1192,11 +1787,10 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         
         function updateCart() {
             const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-            document.getElementById('cartCount').textContent = count;
-            document.getElementById('cartBadge').style.display = count > 0 ? 'flex' : 'none';
-            document.getElementById('checkoutBtn').className = count > 0 ? 'checkout-btn active' : 'checkout-btn';
+        
             
             renderCart();
+            updateCartSummary();
         }
         
         function renderCart() {
@@ -1486,6 +2080,12 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         function performSearch(searchTerm) {
             console.log('Searching for:', searchTerm);
             
+            // Hide category navigation during search
+            const categoryNav = document.getElementById('categoryNav');
+            if (categoryNav) {
+                categoryNav.style.display = 'none';
+            }
+            
             const menuContent = document.getElementById('menuContent');
             if (!menuContent) return;
             
@@ -1544,6 +2144,15 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             const menuContent = document.getElementById('menuContent');
             if (!menuContent) return;
             
+            // Show category navigation when clearing search
+            const categoryNav = document.getElementById('categoryNav');
+            if (categoryNav) {
+                const categories = document.querySelectorAll('.category');
+                if (categories.length > 0) {
+                    categoryNav.style.display = 'block';
+                }
+            }
+            
             menuContent.querySelectorAll('mark').forEach(mark => {
                 mark.outerHTML = mark.textContent;
             });
@@ -1581,6 +2190,297 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 noResults.remove();
             }
         }
+        
+        // ==================== KATEGORİ NAVİGASYONU ====================
+        
+        function initializeCategoryNav() {
+            const categories = document.querySelectorAll('.category');
+            if (categories.length === 0) return;
+            
+            const categoryNav = document.getElementById('categoryNav');
+            const categoryNavScroll = document.getElementById('categoryNavScroll');
+            
+            categoryNav.style.display = 'block';
+            
+            let navHtml = '';
+            categories.forEach(category => {
+                const categoryTitle = category.querySelector('.category-title').textContent;
+                const categoryId = category.id;
+                
+                navHtml += `
+                    <div class="category-nav-item" onclick="scrollToCategory('${categoryId}')">
+                        ${categoryTitle}
+                    </div>
+                `;
+            });
+            
+            categoryNavScroll.innerHTML = navHtml;
+            
+            // Scroll event listener for active category highlight
+            let scrollTimeout;
+            window.addEventListener('scroll', function() {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(updateActiveCategory, 100);
+            });
+            
+            console.log('Category navigation initialized with', categories.length, 'categories');
+        }
+        
+        window.scrollToCategory = function(categoryId) {
+            const category = document.getElementById(categoryId);
+            if (!category) return;
+            
+            const categoryNav = document.getElementById('categoryNav');
+            const offset = categoryNav ? categoryNav.offsetHeight + 10 : 80;
+            
+            const elementPosition = category.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - offset;
+            
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: 'smooth'
+            });
+            
+            // Update active state immediately
+            setTimeout(() => {
+                updateActiveCategory();
+            }, 100);
+        }
+        
+        function updateActiveCategory() {
+            const categories = document.querySelectorAll('.category');
+            const navItems = document.querySelectorAll('.category-nav-item');
+            
+            if (categories.length === 0 || navItems.length === 0) return;
+            
+            const categoryNav = document.getElementById('categoryNav');
+            const offset = categoryNav ? categoryNav.offsetHeight + 100 : 150;
+            
+            let activeIndex = 0;
+            
+            categories.forEach((category, index) => {
+                const rect = category.getBoundingClientRect();
+                if (rect.top <= offset && rect.bottom > offset) {
+                    activeIndex = index;
+                }
+            });
+            
+            navItems.forEach((item, index) => {
+                if (index === activeIndex) {
+                    item.classList.add('active');
+                    
+                    // Scroll active item into view in nav
+                    const navScroll = document.getElementById('categoryNavScroll');
+                    if (navScroll) {
+                        const itemLeft = item.offsetLeft;
+                        const itemWidth = item.offsetWidth;
+                        const scrollLeft = navScroll.scrollLeft;
+                        const navWidth = navScroll.offsetWidth;
+                        
+                        if (itemLeft < scrollLeft) {
+                            navScroll.scrollTo({ left: itemLeft - 20, behavior: 'smooth' });
+                        } else if (itemLeft + itemWidth > scrollLeft + navWidth) {
+                            navScroll.scrollTo({ left: itemLeft - navWidth + itemWidth + 20, behavior: 'smooth' });
+                        }
+                    }
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }// ==================== SEPET ÖZETİ KARTI ====================
+        
+       function updateCartSummary() {
+            const summaryCard = document.getElementById('cartSummaryCard');
+            const summaryItems = document.getElementById('cartSummaryItems');
+            const summaryFooter = document.getElementById('cartSummaryFooter');
+            const summaryCheckout = document.getElementById('cartSummaryCheckout');
+            const summaryCount = document.getElementById('cartSummaryCount');
+            const summaryTotal = document.getElementById('cartSummaryTotal');
+            
+            if (cart.length === 0) {
+                summaryItems.innerHTML = `
+                    <div class="cart-summary-empty">
+                        <div class="cart-summary-empty-icon">🛒</div>
+                        <p>Your cart is empty</p>
+                    </div>
+                `;
+                summaryFooter.style.display = 'none';
+                summaryCheckout.style.display = 'none';
+                hideCartSummary();
+                isCartFirstOpen = true;
+                return;
+            }
+            
+            // Show card - shake animation ONLY on first open
+            if (isCartFirstOpen) {
+                summaryCard.classList.add('visible', 'shake');
+                setTimeout(() => {
+                    summaryCard.classList.remove('shake');
+                }, 500);
+                isCartFirstOpen = false;
+            } else {
+                summaryCard.classList.add('visible');
+            }
+            
+            // Calculate total
+            let total = 0;
+            let itemCount = 0;
+            
+            let html = '';
+            cart.forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                let optionsTotal = 0;
+                
+                if (item.selectedOptions && item.selectedOptions.length > 0) {
+                    item.selectedOptions.forEach(opt => {
+                        optionsTotal += parseFloat(opt.option_price) * item.quantity;
+                    });
+                }
+                
+                const finalTotal = itemTotal + optionsTotal;
+                total += finalTotal;
+                itemCount += item.quantity;
+                
+                html += `
+                    <div class="cart-summary-item">
+                        <div class="cart-summary-item-info">
+                            <div class="cart-summary-item-name">${item.name}</div>
+                            <span class="cart-summary-item-qty">×${item.quantity}</span>
+                            ${item.selectedOptions && item.selectedOptions.length > 0 ? `
+                                <div style="font-size: 11px; color: #667eea; margin-top: 3px;">
+                                    ${item.selectedOptions.map(opt => opt.option_name).join(', ')}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                            <div class="cart-summary-item-price">$${finalTotal.toFixed(2)}</div>
+                            <div style="display: flex; gap: 5px;">
+                                <button onclick="updateQuantity('${item.uniqueId}', -1)" style="width: 24px; height: 24px; border: none; background: #667eea; color: white; border-radius: 50%; cursor: pointer; font-size: 14px;">-</button>
+                                <span style="min-width: 20px; text-align: center; font-weight: 600; font-size: 14px;">${item.quantity}</span>
+                                <button onclick="updateQuantity('${item.uniqueId}', 1)" style="width: 24px; height: 24px; border: none; background: #667eea; color: white; border-radius: 50%; cursor: pointer; font-size: 14px;">+</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            summaryItems.innerHTML = html;
+            summaryCount.textContent = itemCount;
+            summaryTotal.textContent = total.toFixed(2);
+            summaryFooter.style.display = 'block';
+            summaryCheckout.style.display = 'block';
+        }
+        
+        function hideCartSummary() {
+            const summaryCard = document.getElementById('cartSummaryCard');
+            summaryCard.classList.remove('visible');
+        }
+        
+
+        function toggleMinimizeCart() {
+            const summaryCard = document.getElementById('cartSummaryCard');
+            const summaryContent = document.getElementById('cartSummaryContent');
+            const minimizeBtn = document.getElementById('minimizeBtn');
+            
+            isCartSummaryMinimized = !isCartSummaryMinimized;
+            
+            if (isCartSummaryMinimized) {
+                summaryContent.style.display = 'none';
+                minimizeBtn.textContent = '+';
+            } else {
+                summaryContent.style.display = 'flex';
+                minimizeBtn.textContent = '−';
+            }
+        }
+
+        async function submitOrderFromCard() {
+            if (!tableNumber) {
+                alert('Table number is required!');
+                return;
+            }
+            
+            if (cart.length === 0) {
+                alert('Your cart is empty!');
+                return;
+            }
+            
+            const submitBtn = document.querySelector('.cart-summary-submit-btn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Submitting...';
+            
+            const customerName = document.getElementById('cartSummaryName').value;
+            const notes = document.getElementById('cartSummaryNotes').value;
+            const total = cart.reduce((sum, item) => {
+                let itemTotal = item.price * item.quantity;
+                if (item.selectedOptions && item.selectedOptions.length > 0) {
+                    item.selectedOptions.forEach(opt => {
+                        itemTotal += parseFloat(opt.option_price) * item.quantity;
+                    });
+                }
+                return sum + itemTotal;
+            }, 0);
+            
+            const formData = new FormData();
+            formData.append('action', 'rms_submit_order');
+            formData.append('table_number', tableNumber);
+            formData.append('customer_name', customerName);
+            formData.append('notes', notes);
+            formData.append('total_price', total);
+            formData.append('items', JSON.stringify(cart.map(item => ({
+                id: item.id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                selectedOptions: item.selectedOptions || []
+            }))));
+            
+            try {
+                const response = await fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentOrderId = data.data.order_id;
+                    localStorage.setItem('currentOrderId_' + tableNumber, currentOrderId);
+                    
+                    // Show success message
+                    document.getElementById('cartSummaryItems').style.display = 'none';
+                    document.getElementById('cartSummaryFooter').style.display = 'none';
+                    document.getElementById('cartSummaryCheckout').style.display = 'none';
+                    document.getElementById('cartSummarySuccess').style.display = 'block';
+                    
+                    showNotification('Order placed successfully!', 'success');
+                    startOrderTracking();
+                } else {
+                    alert('Failed to submit order. Please try again.');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error submitting order. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+        
+        function closeSuccessMessage() {
+            cart = [];
+            updateCart();
+            document.getElementById('cartSummaryName').value = '';
+            document.getElementById('cartSummaryNotes').value = '';
+            document.getElementById('cartSummaryItems').style.display = 'block';
+            document.getElementById('cartSummarySuccess').style.display = 'none';
+            hideCartSummary();
+        }
+
+        
+        
+
     </script>
 </body>
 </html>
