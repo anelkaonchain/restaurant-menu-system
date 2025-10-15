@@ -7,6 +7,9 @@ function SettingsApp() {
     const [defaultLanguage, setDefaultLanguage] = useState('en');
     const [adminLanguage, setAdminLanguage] = useState('en');
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [enableRecommendations, setEnableRecommendations] = useState(false);
+    const [showModalRecommendations, setShowModalRecommendations] = useState(false);
+    const [showPopupRecommendations, setShowPopupRecommendations] = useState(false);
 
     const languages = {
         'tr': 'Türkçe',
@@ -70,6 +73,9 @@ function SettingsApp() {
             if (data.success) {
                 setDefaultLanguage(data.data.default_language);
                 setAdminLanguage(data.data.admin_language || 'en');
+                setEnableRecommendations(data.data.enable_recommendations || false);
+                setShowModalRecommendations(data.data.show_modal_recommendations || false);
+                setShowPopupRecommendations(data.data.show_popup_recommendations || false);
             }
         } catch (error) {
             console.error('Load error:', error);
@@ -84,6 +90,9 @@ function SettingsApp() {
         formData.append('nonce', window.rmsAdmin.nonce);
         formData.append('default_language', defaultLanguage);
         formData.append('admin_language', adminLanguage);
+        if (enableRecommendations) formData.append('enable_recommendations', '1');
+        if (showModalRecommendations) formData.append('show_modal_recommendations', '1');
+        if (showPopupRecommendations) formData.append('show_popup_recommendations', '1');
 
         try {
             const response = await fetch(window.rmsAdmin.ajaxUrl, {
@@ -196,6 +205,118 @@ function SettingsApp() {
                         ))}
                     </select>
                 </div>
+            </div>
+
+            <div style={{
+                background: 'white',
+                padding: '30px',
+                borderRadius: '12px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                marginBottom: '25px'
+            }}>
+                <h2 style={{ marginTop: 0 }}>
+                    🎁 Recommended Items
+                </h2>
+                <p style={{ color: '#666', marginBottom: '25px' }}>
+                    Show product recommendations to increase sales ("Customers also bought")
+                </p>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer',
+                        padding: '15px',
+                        background: '#f8f9fa',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0'
+                    }}>
+                        <input
+                            type="checkbox"
+                            checked={enableRecommendations}
+                            onChange={(e) => setEnableRecommendations(e.target.checked)}
+                            style={{ 
+                                width: '20px', 
+                                height: '20px', 
+                                marginRight: '12px',
+                                cursor: 'pointer'
+                            }}
+                        />
+                        <span style={{ fontWeight: 'bold', fontSize: '16px' }}>
+                            Enable Recommended Items
+                        </span>
+                    </label>
+                </div>
+
+                {enableRecommendations && (
+                    <div style={{ 
+                        marginLeft: '20px', 
+                        paddingLeft: '20px', 
+                        borderLeft: '3px solid #667eea' 
+                    }}>
+                        <div style={{ marginBottom: '15px' }}>
+                            <label style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                cursor: 'pointer',
+                                padding: '12px',
+                                background: '#f8f9fa',
+                                borderRadius: '6px'
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={showModalRecommendations}
+                                    onChange={(e) => setShowModalRecommendations(e.target.checked)}
+                                    style={{ 
+                                        width: '18px', 
+                                        height: '18px', 
+                                        marginRight: '10px',
+                                        cursor: 'pointer'
+                                    }}
+                                />
+                                <div>
+                                    <div style={{ fontWeight: '600', fontSize: '15px' }}>
+                                        Show in Product Details (Same Category)
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                                        Display similar items when viewing product details
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div style={{ marginBottom: '15px' }}>
+                            <label style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                cursor: 'pointer',
+                                padding: '12px',
+                                background: '#f8f9fa',
+                                borderRadius: '6px'
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={showPopupRecommendations}
+                                    onChange={(e) => setShowPopupRecommendations(e.target.checked)}
+                                    style={{ 
+                                        width: '18px', 
+                                        height: '18px', 
+                                        marginRight: '10px',
+                                        cursor: 'pointer'
+                                    }}
+                                />
+                                <div>
+                                    <div style={{ fontWeight: '600', fontSize: '15px' }}>
+                                        Show After Adding to Cart (Different Category)
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                                        Display complementary items after adding to cart
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <button

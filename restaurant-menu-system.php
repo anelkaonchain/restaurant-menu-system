@@ -496,7 +496,8 @@ class Restaurant_Menu_System {
             wp_localize_script('rms-orders', 'rmsAdmin', array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('rms_nonce'),
-            ));
+                'pluginUrl' => RMS_URL,
+    ));
         }
         
         if ('orders_page_rms-view-menu' === $hook) {
@@ -636,6 +637,7 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_nopriv_rms_call_waiter', array($this, 'ajax_call_waiter'));
         add_action('wp_ajax_rms_get_calls', array($this, 'ajax_get_calls'));
         add_action('wp_ajax_rms_resolve_call', array($this, 'ajax_resolve_call'));
+        add_action('wp_ajax_rms_assign_order_to_table', array($this, 'ajax_assign_order_to_table'));
         add_action('wp_ajax_rms_get_order_status', array($this, 'ajax_get_order_status'));
         add_action('wp_ajax_nopriv_rms_get_order_status', array($this, 'ajax_get_order_status'));
         add_action('wp_ajax_rms_get_stocks', array($this, 'ajax_get_stocks'));
@@ -648,10 +650,37 @@ class Restaurant_Menu_System {
         add_action('wp_ajax_rms_get_item_options', array($this, 'ajax_get_item_options'));
         add_action('wp_ajax_rms_save_item_option', array($this, 'ajax_save_item_option'));
         add_action('wp_ajax_rms_delete_item_option', array($this, 'ajax_delete_item_option'));
+        add_action('wp_ajax_rms_get_recommended_items', array($this, 'ajax_get_recommended_items'));
+        add_action('wp_ajax_nopriv_rms_get_recommended_items', array($this, 'ajax_get_recommended_items'));
 
     }
+
+    public function ajax_assign_order_to_table() {
+    $this->check_user_capability('manage_restaurant_orders');
+    check_ajax_referer('rms_nonce', 'nonce');
     
-    public function ajax_get_current_user() {
+    global $wpdb;
+    $orders_table = $wpdb->prefix . 'rms_orders';
+    
+    $order_id = intval($_POST['order_id']);
+    $table_number = sanitize_text_field($_POST['table_number']);
+    
+    $result = $wpdb->update(
+        $orders_table,
+        array('table_number' => $table_number),
+        array('id' => $order_id),
+        array('%s'),
+        array('%d')
+    );
+    
+    if ($result !== false) {
+        wp_send_json_success(array('message' => 'Order assigned to table ' . $table_number));
+    } else {
+        wp_send_json_error('Failed to assign order');
+    }
+}
+
+public function ajax_get_current_user() {
         if (!is_user_logged_in()) {
             wp_send_json_error('Not logged in');
             return;
@@ -762,6 +791,7 @@ class Restaurant_Menu_System {
         $allergens = sanitize_text_field($_POST['allergens']);
         $category = !empty($_POST['category']) ? intval($_POST['category']) : 0;
         $image = !empty($_POST['image']) ? esc_url_raw($_POST['image']) : '';
+        $related_items = !empty($_POST['related_items']) ? sanitize_text_field($_POST['related_items']) : '';
         
         $post_data = array(
             'post_title' => $name,
@@ -782,6 +812,7 @@ class Restaurant_Menu_System {
             update_post_meta($post_id, '_rms_discounted_price', $discounted_price);
             update_post_meta($post_id, '_rms_allergens', $allergens);
             update_post_meta($post_id, '_rms_image', $image);
+            update_post_meta($post_id, '_rms_related_items', $related_items);
             
             if ($category) {
                 wp_set_object_terms($post_id, $category, 'rms_category');
@@ -1404,9 +1435,24 @@ class Restaurant_Menu_System {
             "SELECT setting_value FROM $table WHERE setting_key = 'admin_language'"
         );
         
+        $enable_recommendations = $wpdb->get_var(
+            "SELECT setting_value FROM $table WHERE setting_key = 'enable_recommendations'"
+        );
+        
+        $show_modal_recommendations = $wpdb->get_var(
+            "SELECT setting_value FROM $table WHERE setting_key = 'show_modal_recommendations'"
+        );
+        
+        $show_popup_recommendations = $wpdb->get_var(
+            "SELECT setting_value FROM $table WHERE setting_key = 'show_popup_recommendations'"
+        );
+        
         wp_send_json_success(array(
             'default_language' => $default_language ? $default_language : 'en',
-            'admin_language' => $admin_language ? $admin_language : 'en'
+            'admin_language' => $admin_language ? $admin_language : 'en',
+            'enable_recommendations' => $enable_recommendations === '1' ? true : false,
+            'show_modal_recommendations' => $show_modal_recommendations === '1' ? true : false,
+            'show_popup_recommendations' => $show_popup_recommendations === '1' ? true : false
         ));
     }
     
@@ -1418,21 +1464,26 @@ class Restaurant_Menu_System {
         $table = $wpdb->prefix . 'rms_settings';
         $default_language = sanitize_text_field($_POST['default_language']);
         $admin_language = sanitize_text_field($_POST['admin_language']);
+        $enable_recommendations = isset($_POST['enable_recommendations']) ? '1' : '0';
+        $show_modal_recommendations = isset($_POST['show_modal_recommendations']) ? '1' : '0';
+        $show_popup_recommendations = isset($_POST['show_popup_recommendations']) ? '1' : '0';
         
-        $wpdb->delete($table, array('setting_key' => 'default_language'), array('%s'));
-        $wpdb->delete($table, array('setting_key' => 'admin_language'), array('%s'));
-        
-        $wpdb->insert(
-            $table,
-            array('setting_key' => 'default_language', 'setting_value' => $default_language),
-            array('%s', '%s')
+        $settings = array(
+            'default_language' => $default_language,
+            'admin_language' => $admin_language,
+            'enable_recommendations' => $enable_recommendations,
+            'show_modal_recommendations' => $show_modal_recommendations,
+            'show_popup_recommendations' => $show_popup_recommendations
         );
         
-        $wpdb->insert(
-            $table,
-            array('setting_key' => 'admin_language', 'setting_value' => $admin_language),
-            array('%s', '%s')
-        );
+        foreach ($settings as $key => $value) {
+            $wpdb->delete($table, array('setting_key' => $key), array('%s'));
+            $wpdb->insert(
+                $table,
+                array('setting_key' => $key, 'setting_value' => $value),
+                array('%s', '%s')
+            );
+        }
         
         wp_send_json_success();
     }
@@ -1676,6 +1727,122 @@ class Restaurant_Menu_System {
             wp_send_json_error();
         }
     }
+
+    // ==================== RECOMMENDED ITEMS ====================
+    
+    public function ajax_get_recommended_items() {
+        check_ajax_referer('rms_nonce', 'nonce');
+        
+        $item_id = intval($_POST['item_id']);
+        $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 3;
+        $type = isset($_POST['type']) ? sanitize_text_field($_POST['type']) : 'all'; // 'same_category', 'different_category', 'all'
+        
+        $recommendations = $this->get_recommended_items($item_id, $limit, $type);
+        
+        wp_send_json_success($recommendations);
+    }
+    
+    public function get_recommended_items($item_id, $limit = 3, $type = 'all') {
+        global $wpdb;
+        $orders_table = $wpdb->prefix . 'rms_orders';
+        
+        // Get current item's category
+        $current_category = '';
+        $terms = wp_get_post_terms($item_id, 'rms_category');
+        if (!empty($terms) && !is_wp_error($terms)) {
+            $current_category = $terms[0]->term_id;
+        }
+        
+        // Manuel seçilenleri al
+        $manual_items = get_post_meta($item_id, '_rms_related_items', true);
+        $manual_array = !empty($manual_items) ? array_map('intval', explode(',', $manual_items)) : array();
+        
+        // Akıllı algoritma
+        $sql = "SELECT items FROM {$orders_table} 
+                WHERE items LIKE %s 
+                AND status IN ('pending', 'preparing', 'ready', 'delivered')
+                ORDER BY created_at DESC 
+                LIMIT 100";
+        
+        $orders = $wpdb->get_results($wpdb->prepare($sql, '%"id":' . $item_id . '%'));
+        
+        $item_frequency = array();
+        
+        foreach ($orders as $order) {
+            $items = json_decode($order->items, true);
+            if (!$items) continue;
+            
+            foreach ($items as $order_item) {
+                $other_id = intval($order_item['id']);
+                if ($other_id != $item_id) {
+                    if (!isset($item_frequency[$other_id])) {
+                        $item_frequency[$other_id] = 0;
+                    }
+                    $item_frequency[$other_id]++;
+                }
+            }
+        }
+        
+        arsort($item_frequency);
+        $smart_items = array_keys(array_slice($item_frequency, 0, $limit * 2));
+
+        // Filter by category type
+    if ($type === 'same_category' && !empty($current_category)) {
+        $smart_items = array_filter($smart_items, function($rec_id) use ($current_category) {
+            $terms = wp_get_post_terms($rec_id, 'rms_category');
+            if (!empty($terms) && !is_wp_error($terms)) {
+                return $terms[0]->term_id === $current_category;
+            }
+            return false;
+        });
+    } elseif ($type === 'different_category' && !empty($current_category)) {
+        $smart_items = array_filter($smart_items, function($rec_id) use ($current_category) {
+            $terms = wp_get_post_terms($rec_id, 'rms_category');
+            if (!empty($terms) && !is_wp_error($terms)) {
+                return $terms[0]->term_id !== $current_category;
+            }
+            return true;
+        });
+    }
+        
+        // Manuel öncelikli birleştir
+        $combined = array_unique(array_merge($manual_array, $smart_items));
+        $result = array();
+        
+        foreach ($combined as $rec_id) {
+            if (count($result) >= $limit) break;
+            if (empty($rec_id)) continue;
+            
+            $item_data = $this->get_menu_item_data($rec_id);
+            if ($item_data) {
+                $item_data['source'] = in_array($rec_id, $manual_array) ? 'manual' : 'smart';
+                $item_data['frequency'] = isset($item_frequency[$rec_id]) ? $item_frequency[$rec_id] : 0;
+                $result[] = $item_data;
+            }
+        }
+        
+        return $result;
+    }
+    
+    private function get_menu_item_data($item_id) {
+        $post = get_post($item_id);
+        if (!$post || $post->post_type !== 'rms_menu_item') {
+            return null;
+        }
+        
+        return array(
+            'id' => $item_id,
+            'name' => $post->post_title,
+            'description' => $post->post_content,
+            'price' => get_post_meta($item_id, '_rms_price', true),
+            'discounted_price' => get_post_meta($item_id, '_rms_discounted_price', true),
+            'image' => get_post_meta($item_id, '_rms_image', true),
+            'category' => get_post_meta($item_id, '_rms_category', true),
+            'allergens' => get_post_meta($item_id, '_rms_allergens', true)
+        );
+    }
+    
+    
 }
 
 Restaurant_Menu_System::get_instance();

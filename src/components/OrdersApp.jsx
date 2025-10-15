@@ -1,17 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useTranslation from '../hooks/useTranslation.js';
 
 function OrdersApp() {
     const { t, language } = useTranslation();
     const [orders, setOrders] = useState([]);
+    const [calls, setCalls] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('pending');
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [selectedCall, setSelectedCall] = useState(null);
+    const [selectedOrder, setSelectedOrder] = useState('');
+    
+    // Önceki siparişleri takip et
+    const previousOrdersRef = useRef([]);
+    const previousCallsRef = useRef([]);
+    const isInitialLoadRef = useRef(true); // İlk yükleme flag'i
+    
+    // Ses için AudioContext oluştur
+    const [audioContext] = useState(() => {
+        return new (window.AudioContext || window.webkitAudioContext)();
+    });
 
     useEffect(() => {
         fetchOrders();
-        const interval = setInterval(fetchOrders, 5000);
-        return () => clearInterval(interval);
+        fetchCalls();
+        
+        // İlk yükleme tamamlandı, artık bildirimleri göster
+        const initTimer = setTimeout(() => {
+            isInitialLoadRef.current = false;
+        }, 2000);
+        
+        const ordersInterval = setInterval(fetchOrders, 5000);
+        const callsInterval = setInterval(fetchCalls, 5000);
+        
+        return () => {
+            clearTimeout(initTimer);
+            clearInterval(ordersInterval);
+            clearInterval(callsInterval);
+        };
     }, []);
+
+    // Audio unlock - İlk tıklamada AudioContext'i unlock et
+    useEffect(() => {
+        const unlockAudio = () => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        };
+        
+        document.addEventListener('click', unlockAudio, { once: true });
+        document.addEventListener('touchstart', unlockAudio, { once: true });
+        
+        return () => {
+            document.removeEventListener('click', unlockAudio);
+            document.removeEventListener('touchstart', unlockAudio);
+        };
+    }, [audioContext]);
 
     const fetchOrders = async () => {
         try {
@@ -26,13 +70,11 @@ function OrdersApp() {
 
             const data = await response.json();
             if (data.success) {
-                const oldOrders = orders;
                 const newOrders = data.data;
+                const oldOrders = previousOrdersRef.current;
                 
-                setOrders(newOrders);
-                
-                // Sadece yeni "pending" siparişler için bildirim göster
-                if (oldOrders.length > 0) {
+                // İlk yükleme değilse ve yeni pending siparişler varsa bildirim gönder
+                if (!isInitialLoadRef.current && oldOrders.length > 0) {
                     const newPendingOrders = newOrders.filter(newOrder => 
                         newOrder.status === 'pending' && 
                         !oldOrders.some(oldOrder => oldOrder.id === newOrder.id)
@@ -43,6 +85,10 @@ function OrdersApp() {
                         showNotification(newPendingOrders.length);
                     }
                 }
+                
+                // Önceki siparişleri güncelle
+                previousOrdersRef.current = newOrders;
+                setOrders(newOrders);
             }
             setLoading(false);
         } catch (error) {
@@ -51,13 +97,141 @@ function OrdersApp() {
         }
     };
 
+    const fetchCalls = async () => {
+        try {
+            const formData = new FormData();
+            formData.append('action', 'rms_get_calls');
+            formData.append('nonce', rmsAdmin.nonce);
+
+            const response = await fetch(rmsAdmin.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                const newCalls = data.data;
+                const oldCalls = previousCallsRef.current;
+                
+                // İlk yükleme değilse ve yeni call varsa bildirim gönder
+                if (!isInitialLoadRef.current && newCalls.length > oldCalls.length) {
+                    playWaiterCallSound();
+                    showWaiterCallNotification(newCalls[0].table_number);
+                }
+                
+                previousCallsRef.current = newCalls;
+                setCalls(newCalls);
+            }
+        } catch (error) {
+            console.error('Error fetching calls:', error);
+        }
+    };
+
+    const resolveCall = async (callId) => {
+        try {
+            const formData = new FormData();
+            formData.append('action', 'rms_resolve_call');
+            formData.append('nonce', rmsAdmin.nonce);
+            formData.append('id', callId);
+
+            const response = await fetch(rmsAdmin.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                fetchCalls();
+            }
+        } catch (error) {
+            console.error('Error resolving call:', error);
+        }
+    };
+
+    const assignOrderToTable = async () => {
+        if (!selectedOrder || !selectedCall) {
+            alert('Please select an order');
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'rms_assign_order_to_table');
+            formData.append('nonce', rmsAdmin.nonce);
+            formData.append('order_id', selectedOrder);
+            formData.append('table_number', selectedCall.table_number);
+
+            const response = await fetch(rmsAdmin.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert(`Order #${selectedOrder} assigned to Table ${selectedCall.table_number}!`);
+                setShowAssignModal(false);
+                setSelectedOrder('');
+                setSelectedCall(null);
+                fetchOrders();
+                resolveCall(selectedCall.id);
+            }
+        } catch (error) {
+            console.error('Error assigning order:', error);
+        }
+    };
+
     const playNotificationSound = () => {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZQQ0OXrXp7KhWFApGn+Dyu20h');
-        audio.play().catch(e => console.log('Ses çalınamadı:', e));
+        try {
+            // Beep sesi üret (440Hz, 0.2 saniye)
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800; // Yüksek pitch
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (error) {
+            console.error('❌ Sound error:', error);
+        }
+    };
+
+    const playWaiterCallSound = () => {
+        try {
+            // Çift beep sesi
+            const playBeep = (frequency, startTime, duration) => {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = frequency;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.5, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                
+                oscillator.start(startTime);
+                oscillator.stop(startTime + duration);
+            };
+            
+            const now = audioContext.currentTime;
+            playBeep(880, now, 0.15);
+            playBeep(880, now + 0.2, 0.15);
+            playBeep(880, now + 0.4, 0.15);
+        } catch (error) {
+            console.error('❌ Waiter call error:', error);
+        }
     };
 
     const showNotification = (count) => {
-        // Tarayıcı bildirimi göster
         const notificationDiv = document.createElement('div');
         notificationDiv.style.cssText = `
             position: fixed;
@@ -90,39 +264,75 @@ function OrdersApp() {
             </div>
         `;
         
-        // Animasyon stilleri
+        document.body.appendChild(notificationDiv);
+        
+        setTimeout(() => {
+            notificationDiv.style.animation = 'slideInRight 0.5s ease-out reverse';
+            setTimeout(() => notificationDiv.remove(), 500);
+        }, 5000);
+    };
+
+    const showWaiterCallNotification = (tableNumber) => {
+        const notificationDiv = document.createElement('div');
+        notificationDiv.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: linear-gradient(135deg, #E74C3C 0%, #C0392B 100%);
+            color: white;
+            padding: 25px 35px;
+            border-radius: 15px;
+            box-shadow: 0 8px 24px rgba(231, 76, 60, 0.5);
+            z-index: 10000;
+            font-size: 18px;
+            font-weight: 700;
+            animation: shake 0.5s ease-in-out, pulse 2s infinite;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        `;
+        
+        notificationDiv.innerHTML = `
+            <span style="font-size: 36px; animation: ring 1s ease-in-out infinite;">🔔</span>
+            <div>
+                <div style="font-size: 20px; margin-bottom: 5px;">
+                    Table ${tableNumber} is calling!
+                </div>
+                <div style="font-size: 14px; opacity: 0.9;">
+                    Customer needs assistance
+                </div>
+            </div>
+        `;
+        
         const style = document.createElement('style');
         style.textContent = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-10px); }
+                75% { transform: translateX(10px); }
+            }
+            @keyframes ring {
+                0%, 100% { transform: rotate(0deg); }
+                25% { transform: rotate(-15deg); }
+                75% { transform: rotate(15deg); }
+            }
             @keyframes slideInRight {
-                from {
-                    transform: translateX(400px);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
             }
             @keyframes pulse {
-                0%, 100% {
-                    transform: scale(1);
-                }
-                50% {
-                    transform: scale(1.05);
-                }
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
             }
         `;
         document.head.appendChild(style);
         
         document.body.appendChild(notificationDiv);
         
-        // 5 saniye sonra bildirimi kaldır
         setTimeout(() => {
             notificationDiv.style.animation = 'slideInRight 0.5s ease-out reverse';
-            setTimeout(() => {
-                notificationDiv.remove();
-            }, 500);
-        }, 5000);
+            setTimeout(() => notificationDiv.remove(), 500);
+        }, 7000);
     };
 
     const updateOrderStatus = async (orderId, newStatus) => {
@@ -282,6 +492,295 @@ function OrdersApp() {
                     {t('orders.total')}: {orders.length} {t('orders.order')}
                 </div>
             </div>
+
+            {/* WAITER CALLS PANEL */}
+            {calls.length > 0 && (
+                <div style={{
+                    background: 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)',
+                    padding: '25px',
+                    borderRadius: '15px',
+                    marginBottom: '30px',
+                    boxShadow: '0 8px 24px rgba(231, 76, 60, 0.3)',
+                    animation: 'pulse 2s infinite'
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '20px'
+                    }}>
+                        <h2 style={{
+                            margin: 0,
+                            color: 'white',
+                            fontSize: '24px',
+                            fontWeight: '700',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px'
+                        }}>
+                            <span style={{ fontSize: '32px', animation: 'ring 1s ease-in-out infinite' }}>🔔</span>
+                            Waiter Calls ({calls.length})
+                        </h2>
+                    </div>
+                    
+                    <div style={{ display: 'grid', gap: '15px' }}>
+                        {calls.map(call => (
+                            <div key={call.id} style={{
+                                background: 'white',
+                                padding: '20px',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div style={{
+                                        background: '#E74C3C',
+                                        color: 'white',
+                                        width: '50px',
+                                        height: '50px',
+                                        borderRadius: '50%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '24px',
+                                        fontWeight: '700'
+                                    }}>
+                                        🪑
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '20px', fontWeight: '700', color: '#2C3E50' }}>
+                                            Table {call.table_number}
+                                        </div>
+                                        <div style={{ fontSize: '14px', color: '#6C757D' }}>
+                                            {new Date(call.created_at).toLocaleString()}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedCall(call);
+                                            setShowAssignModal(true);
+                                        }}
+                                        style={{
+                                            padding: '12px 24px',
+                                            background: '#004E89',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            fontWeight: '700',
+                                            fontSize: '15px'
+                                        }}
+                                    >
+                                        📝 Assign Order
+                                    </button>
+                                    <button
+                                        onClick={() => resolveCall(call.id)}
+                                        style={{
+                                            padding: '12px 24px',
+                                            background: '#06A77D',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            fontWeight: '700',
+                                            fontSize: '15px'
+                                        }}
+                                    >
+                                        ✅ Resolve
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <style>{`
+                        @keyframes ring {
+                            0%, 100% { transform: rotate(0deg); }
+                            25% { transform: rotate(-15deg); }
+                            75% { transform: rotate(15deg); }
+                        }
+                        @keyframes pulse {
+                            0%, 100% { transform: scale(1); }
+                            50% { transform: scale(1.02); }
+                        }
+                    `}</style>
+                </div>
+            )}
+
+            {/* ASSIGN ORDER MODAL */}
+            {showAssignModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10000
+                }}>
+                    <div style={{
+                        background: 'white',
+                        padding: '30px',
+                        borderRadius: '20px',
+                        maxWidth: '600px',
+                        width: '90%',
+                        maxHeight: '80vh',
+                        overflow: 'auto',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+                    }}>
+                        <h2 style={{ marginTop: 0, fontSize: '24px', color: '#2C3E50', marginBottom: '20px' }}>
+                            📝 Handle Table {selectedCall?.table_number}
+                        </h2>
+                        
+                        {/* Pending Orders Varsa Göster */}
+                        {orders.filter(o => o.status === 'pending').length > 0 && (
+                            <>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600', fontSize: '16px' }}>
+                                        Option 1: Assign Existing Order
+                                    </label>
+                                    <select
+                                        value={selectedOrder}
+                                        onChange={(e) => setSelectedOrder(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px',
+                                            borderRadius: '8px',
+                                            border: '2px solid #E9ECEF',
+                                            fontSize: '16px'
+                                        }}
+                                    >
+                                        <option value="">-- Select an order --</option>
+                                        {orders.filter(o => o.status === 'pending').map(order => (
+                                            <option key={order.id} value={order.id}>
+                                                Order #{order.id} - ${parseFloat(order.total_price).toFixed(2)} - {order.table_number}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                
+                                {selectedOrder && (
+                                    <button
+                                        onClick={assignOrderToTable}
+                                        style={{
+                                            width: '100%',
+                                            padding: '14px',
+                                            background: '#06A77D',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '10px',
+                                            cursor: 'pointer',
+                                            fontWeight: '700',
+                                            fontSize: '16px',
+                                            marginBottom: '20px'
+                                        }}
+                                    >
+                                        ✅ Assign Order #{selectedOrder}
+                                    </button>
+                                )}
+                                
+                                <div style={{
+                                    textAlign: 'center',
+                                    margin: '20px 0',
+                                    color: '#6C757D',
+                                    fontSize: '14px',
+                                    fontWeight: '600'
+                                }}>
+                                    — OR —
+                                </div>
+                            </>
+                        )}
+                        
+                        {/* Take New Order Butonu */}
+                        <div style={{ 
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            padding: '20px',
+                            borderRadius: '12px',
+                            textAlign: 'center',
+                            marginBottom: '20px'
+                        }}>
+                            <div style={{ fontSize: '48px', marginBottom: '10px' }}>🍽️</div>
+                            <h3 style={{ color: 'white', margin: '0 0 10px 0' }}>
+                                {orders.filter(o => o.status === 'pending').length > 0 ? 'Option 2: Take New Order' : 'Take New Order'}
+                            </h3>
+                            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px', marginBottom: '15px' }}>
+                                Go to customer menu and create order for Table {selectedCall?.table_number}
+                            </p>
+                            <button
+                                onClick={() => {
+                                    const menuUrl = window.location.origin + '/menu?table=' + selectedCall?.table_number;
+                                    window.open(menuUrl, '_blank');
+                                }}
+                                style={{
+                                    background: 'white',
+                                    color: '#667eea',
+                                    border: 'none',
+                                    padding: '12px 30px',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontWeight: '700',
+                                    fontSize: '16px'
+                                }}
+                            >
+                                🚀 Open Menu for Table {selectedCall?.table_number}
+                            </button>
+                        </div>
+                        
+                        {/* Close & Resolve Butonları */}
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={() => {
+                                    resolveCall(selectedCall.id);
+                                    setShowAssignModal(false);
+                                    setSelectedCall(null);
+                                    setSelectedOrder('');
+                                }}
+                                style={{
+                                    flex: 1,
+                                    padding: '14px',
+                                    background: '#06A77D',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '10px',
+                                    cursor: 'pointer',
+                                    fontWeight: '700',
+                                    fontSize: '16px'
+                                }}
+                            >
+                                ✅ Just Resolve (No Order)
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowAssignModal(false);
+                                    setSelectedCall(null);
+                                    setSelectedOrder('');
+                                }}
+                                style={{
+                                    flex: 1,
+                                    padding: '14px',
+                                    background: '#6C757D',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '10px',
+                                    cursor: 'pointer',
+                                    fontWeight: '700',
+                                    fontSize: '16px'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Tabs */}
             <div style={{ 
@@ -490,45 +989,97 @@ function OrdersApp() {
                                     </div>
                                     <div style={{ display: 'grid', gap: '8px' }}>
                                         {Array.isArray(order.items) && order.items.length > 0 ? (
-                                            order.items.map((item, index) => (
-                                                <div 
-                                                    key={index} 
-                                                    style={{ 
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center',
-                                                        padding: '10px',
-                                                        backgroundColor: 'white',
-                                                        borderRadius: '8px',
-                                                        fontSize: '15px'
-                                                    }}
-                                                >
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <span style={{
-                                                            backgroundColor: statusColor,
-                                                            color: 'white',
-                                                            padding: '4px 10px',
-                                                            borderRadius: '6px',
-                                                            fontSize: '13px',
-                                                            fontWeight: '700',
-                                                            minWidth: '32px',
-                                                            textAlign: 'center'
+                                            order.items.map((item, index) => {
+                                                // Normalize options - farklı key isimlerini destekle
+                                                let rawOptions = item.options || item.selectedOptions || [];
+                                                const itemOptions = rawOptions.map(opt => ({
+                                                    name: opt.name || opt.option_name || '',
+                                                    price: opt.price || opt.option_price || 0
+                                                }));
+                                                
+                                                return (
+                                                    <div 
+                                                        key={index} 
+                                                        style={{ 
+                                                            padding: '10px',
+                                                            backgroundColor: 'white',
+                                                            borderRadius: '8px',
+                                                            fontSize: '15px'
+                                                        }}
+                                                    >
+                                                        {/* Ana Item Satırı */}
+                                                        <div style={{ 
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center',
+                                                            marginBottom: itemOptions.length > 0 ? '8px' : '0'
                                                         }}>
-                                                            {item.quantity}x
-                                                        </span>
-                                                        <span style={{ fontWeight: '600', color: '#2C3E50' }}>
-                                                            {item.name}
-                                                        </span>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                <span style={{
+                                                                    backgroundColor: statusColor,
+                                                                    color: 'white',
+                                                                    padding: '4px 10px',
+                                                                    borderRadius: '6px',
+                                                                    fontSize: '13px',
+                                                                    fontWeight: '700',
+                                                                    minWidth: '32px',
+                                                                    textAlign: 'center'
+                                                                }}>
+                                                                    {item.quantity}x
+                                                                </span>
+                                                                <span style={{ fontWeight: '600', color: '#2C3E50' }}>
+                                                                    {item.name}
+                                                                </span>
+                                                            </div>
+                                                            <span style={{ 
+                                                                fontWeight: '700',
+                                                                color: '#06A77D',
+                                                                fontSize: '15px'
+                                                            }}>
+                                                                ${parseFloat(item.price).toFixed(2)}
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        {/* Options (Customizations) */}
+                                                        {itemOptions.length > 0 && (
+                                                            <div style={{ 
+                                                                paddingLeft: '52px',
+                                                                display: 'flex',
+                                                                flexWrap: 'wrap',
+                                                                gap: '6px'
+                                                            }}>
+                                                                {itemOptions.map((option, optIdx) => (
+                                                                    <div 
+                                                                        key={optIdx}
+                                                                        style={{
+                                                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                                            color: 'white',
+                                                                            padding: '4px 10px',
+                                                                            borderRadius: '12px',
+                                                                            fontSize: '12px',
+                                                                            fontWeight: '600',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px'
+                                                                        }}
+                                                                    >
+                                                                        <span>➕</span>
+                                                                        <span>{option.name}</span>
+                                                                        {option.price > 0 && (
+                                                                            <span style={{ 
+                                                                                fontWeight: '700',
+                                                                                marginLeft: '2px'
+                                                                            }}>
+                                                                                (+${parseFloat(option.price).toFixed(2)})
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <span style={{ 
-                                                        fontWeight: '700',
-                                                        color: '#06A77D',
-                                                        fontSize: '15px'
-                                                    }}>
-                                                        ${parseFloat(item.price).toFixed(2)}
-                                                    </span>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         ) : (
                                             <div style={{ color: '#6C757D', fontStyle: 'italic' }}>
                                                 No items

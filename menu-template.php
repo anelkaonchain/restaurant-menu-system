@@ -563,6 +563,124 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             transform: translateY(-2px);
         }
         
+        /* ORDER SUCCESS ANIMATION */
+        .order-success-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+        }
+        
+        .order-success-overlay.active {
+            display: flex;
+        }
+        
+        .order-success-content {
+            background: white;
+            border-radius: 30px;
+            padding: 50px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            position: relative;
+            animation: successSlideUp 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        @keyframes successSlideUp {
+            from {
+                transform: translateY(100px) scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+        
+        .success-icon-big {
+            font-size: 100px;
+            margin-bottom: 20px;
+            animation: successPulse 1s infinite;
+        }
+        
+        @keyframes successPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .order-number-display {
+            font-size: 64px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 20px 0;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .order-info-box {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        
+        .order-info-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .order-info-item strong {
+            color: #667eea;
+        }
+        
+        .close-success-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .close-success-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* CONFETTI */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background: #f0f;
+            position: absolute;
+            animation: confetti-fall 3s linear forwards;
+        }
+        
+        @keyframes confetti-fall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
         .cart-summary-total {
             display: flex;
             justify-content: space-between;
@@ -1175,6 +1293,282 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             font-size: 22px;
             font-weight: bold;
         }
+
+        .recommended-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .recommended-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .recommended-items {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #667eea #f0f0f0;
+        }
+        
+        .recommended-items::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .recommended-items::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 10px;
+        }
+        
+        .recommended-items::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
+        .recommended-item-card {
+            flex-shrink: 0;
+            width: 140px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .recommended-item-card:hover {
+            border-color: #667eea;
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .recommended-item-image {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+        }
+        
+        .recommended-item-info {
+            padding: 10px;
+        }
+        
+        .recommended-item-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .recommended-item-price {
+            font-size: 14px;
+            font-weight: bold;
+            color: #27ae60;
+        }
+        
+        .recommended-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        /* ADD TO CART POPUP */
+        .add-to-cart-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+        }
+        
+        .add-to-cart-popup.active {
+            display: flex;
+        }
+        
+        .add-to-cart-popup-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideUp 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(50px) scale(0.9); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        
+        .popup-header {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+            border-radius: 20px 20px 0 0;
+        }
+        
+        .popup-success-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .popup-header h3 {
+            margin: 0;
+            font-size: 22px;
+        }
+        
+        .popup-body {
+            padding: 25px;
+        }
+        
+        .popup-recommended-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .popup-recommended-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .popup-recommended-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .popup-recommended-item:hover {
+            background: #e8ebff;
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+        
+        .popup-item-image {
+            width: 70px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        
+        .popup-item-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .popup-item-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .popup-item-price {
+            font-weight: bold;
+            color: #27ae60;
+            font-size: 16px;
+        }
+        
+        .popup-add-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        
+        .popup-add-btn:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+        
+        .popup-add-btn.added {
+            background: #27ae60;
+        }
+        
+        .popup-footer {
+            padding: 0 25px 25px 25px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .popup-btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .popup-btn-continue {
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .popup-btn-continue:hover {
+            background: #e9ecef;
+        }
+        
+        .popup-btn-checkout {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .popup-btn-checkout:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
         
         /* YEŞİL CHECKOUT BUTONU VE KIRMIZI BADGE GİZLE */
         .checkout-btn {
@@ -1373,6 +1767,66 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         <div class="status-step pending" id="statusReady">✅ Ready</div>
         <div class="status-step pending" id="statusDelivered">🎉 Delivered</div>
     </div>
+
+    <!-- ORDER SUCCESS OVERLAY -->
+    <div class="order-success-overlay" id="orderSuccessOverlay">
+        <div class="order-success-content">
+            <div class="success-icon-big">🎉</div>
+            <h2 style="color: #27ae60; margin: 10px 0; font-size: 32px;">Order Placed!</h2>
+            <p style="color: #666; font-size: 16px; margin-bottom: 20px;">Your order has been successfully submitted</p>
+            
+            <div class="order-number-display" id="orderNumberDisplay">#0</div>
+            
+            <div class="order-info-box">
+                <div class="order-info-item">
+                    <span>📍</span>
+                    <span>Table: <strong id="orderTableDisplay">-</strong></span>
+                </div>
+                <div class="order-info-item">
+                    <span>⏱️</span>
+                    <span>Estimated time: <strong id="orderTimeDisplay">~15 min</strong></span>
+                </div>
+                <div class="order-info-item">
+                    <span>💰</span>
+                    <span>Total: <strong id="orderTotalDisplay">$0.00</strong></span>
+                </div>
+            </div>
+            
+            <p style="color: #999; font-size: 14px; margin: 20px 0;">
+                Please wait at your table. We'll bring your order shortly!
+            </p>
+            
+            <button class="close-success-btn" onclick="closeOrderSuccess()">
+                Got it! ✨
+            </button>
+        </div>
+    </div>
+
+    <!-- ADD TO CART SUCCESS POPUP -->
+    <div class="add-to-cart-popup" id="addToCartPopup">
+        <div class="add-to-cart-popup-content">
+            <div class="popup-header">
+                <div class="popup-success-icon">✅</div>
+                <h3>Added to Cart!</h3>
+            </div>
+            <div class="popup-body">
+                <div class="popup-recommended-title">
+                    🎁 Customers also bought:
+                </div>
+                <div class="popup-recommended-grid" id="popupRecommendedGrid">
+                    <!-- Items will be loaded here -->
+                </div>
+            </div>
+            <div class="popup-footer">
+                <button class="popup-btn popup-btn-continue" onclick="closeAddToCartPopup()">
+                    Continue Shopping
+                </button>
+                <button class="popup-btn popup-btn-checkout" onclick="closeAddToCartPopup(); updateCartSummary();">
+                    View Cart
+                </button>
+            </div>
+        </div>
+    </div>
     
     <div class="modal item-detail-modal" id="itemDetailModal">
         <div class="modal-content">
@@ -1397,6 +1851,13 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                 <div id="optionsList"></div>
             </div>
             
+            <div id="recommendedSection" class="recommended-section" style="display: none;">
+                <div class="recommended-title">
+                    🎁 Frequently bought together
+                </div>
+                <div class="recommended-items" id="recommendedItems"></div>
+            </div>
+
             <button class="add-to-cart-btn" onclick="addItemToCart()">
                 <span>Add to Cart</span>
                 <span class="modal-total-price" id="modalTotalPrice">$0.00</span>
@@ -1503,6 +1964,88 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
         let isCartSummaryHovered = false;
         let isCartSummaryMinimized = false;
         let isCartFirstOpen = true;
+        // Settings
+        let recommendationsEnabled = false;
+        let showModalRecommendations = false;
+        let showPopupRecommendations = false;
+        
+        // Load settings
+        async function loadRecommendationSettings() {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'rms_get_settings');
+                formData.append('nonce', '<?php echo wp_create_nonce('rms_nonce'); ?>');
+                
+                const response = await fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    recommendationsEnabled = data.data.enable_recommendations || false;
+                    showModalRecommendations = data.data.show_modal_recommendations || false;
+                    showPopupRecommendations = data.data.show_popup_recommendations || false;
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+        
+        // Load settings on page load
+        loadRecommendationSettings();
+
+        // ==================== ORDER SUCCESS ANIMATION ====================
+        
+        function createConfetti() {
+            const colors = ['#667eea', '#764ba2', '#27ae60', '#e74c3c', '#f39c12', '#3498db'];
+            const confettiCount = 100;
+            
+            for (let i = 0; i < confettiCount; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + '%';
+                    confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                    confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                    confetti.style.width = (Math.random() * 10 + 5) + 'px';
+                    confetti.style.height = confetti.style.width;
+                    
+                    document.body.appendChild(confetti);
+                    
+                    setTimeout(() => confetti.remove(), 3000);
+                }, i * 10);
+            }
+        }
+        
+        function showOrderSuccess(orderData) {
+            // Update display
+            document.getElementById('orderNumberDisplay').textContent = '#' + orderData.order_id;
+            document.getElementById('orderTableDisplay').textContent = orderData.table_number || tableNumber;
+            document.getElementById('orderTimeDisplay').textContent = '~15 min';
+            document.getElementById('orderTotalDisplay').textContent = '$' + orderData.total_price.toFixed(2);
+            
+            // Show overlay
+            document.getElementById('orderSuccessOverlay').classList.add('active');
+            
+            // Create confetti
+            createConfetti();
+            
+            // Play sound if available
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGGe47OeeSwwPUKzn77RgGwU7k9n0y3goBS18zu/glEILElyx5+yrVBMKRp/h8sFrIQUsgc7y2Yk2CBhnuO3kn0wMD0+n5e6zYhsFO5PY88t6KQUtfM/w36JVEQtcr+ftrVQTCUah4fLBayEELYHO8tmJNggYZrnt5Z9MDA9Pp+P0s2IcBTqU2fPLeikFLnvN79+jUxIKW6zm7axWEgpFoOHyvWsgBCyAzvLaiTYIGGW67OSeSwwPT6fi9LJhHAU6ldj0y3spBS17ze/fo1MSCluq5u+2VhIKRaDh8r5rIQQugs7y2Yk3CBhmvOzlnkwMD0+p4/SzYBwEOZTX9Mp6KgUue83v4KJTFQ==');
+                audio.volume = 0.3;
+                audio.play();
+            } catch (e) {}
+        }
+        
+        function closeOrderSuccess() {
+            document.getElementById('orderSuccessOverlay').classList.remove('active');
+        }
+
+        
         
         
         const languages = {
@@ -1700,6 +2243,13 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             } else {
                 optionsSection.style.display = 'none';
             }
+
+            // Load recommended items (same category) - only if enabled
+            if (recommendationsEnabled && showModalRecommendations) {
+                loadRecommendedItems(item.id, 'same_category');
+            } else {
+                document.getElementById('recommendedSection').style.display = 'none';
+            }
             
             document.getElementById('itemDetailModal').classList.add('active');
         }
@@ -1743,6 +2293,164 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             document.getElementById('modalTotalPrice').textContent = '$' + total.toFixed(2);
         }
 
+        // ==================== RECOMMENDED ITEMS ====================
+        
+        async function loadRecommendedItems(itemId, type = 'all') {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'rms_get_recommended_items');
+                formData.append('nonce', '<?php echo wp_create_nonce('rms_nonce'); ?>');
+                formData.append('item_id', itemId);
+                formData.append('limit', 4);
+                formData.append('type', type);
+                
+                const response = await fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    renderRecommendedItems(data.data);
+                } else {
+                    document.getElementById('recommendedSection').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading recommended items:', error);
+                document.getElementById('recommendedSection').style.display = 'none';
+            }
+        }
+        
+
+        // ==================== ADD TO CART POPUP ====================
+        
+        let lastAddedItemRecommendations = [];
+        
+        async function showAddToCartPopup(itemId) {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'rms_get_recommended_items');
+                formData.append('nonce', '<?php echo wp_create_nonce('rms_nonce'); ?>');
+                formData.append('item_id', itemId);
+                formData.append('limit', 3);
+                formData.append('type', 'different_category');
+                
+                const response = await fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    lastAddedItemRecommendations = data.data;
+                    renderPopupRecommendedItems(data.data);
+                    document.getElementById('addToCartPopup').classList.add('active');
+                } else {
+                    // No recommendations, just show notification
+                    showNotification('Added to cart!', 'success');
+                }
+            } catch (error) {
+                console.error('Error loading recommendations:', error);
+                showNotification('Added to cart!', 'success');
+            }
+        }
+        
+        function renderPopupRecommendedItems(items) {
+            const grid = document.getElementById('popupRecommendedGrid');
+            
+            let html = '';
+            items.forEach(item => {
+                const displayPrice = (item.discounted_price && parseFloat(item.discounted_price) > 0) 
+                    ? parseFloat(item.discounted_price) 
+                    : parseFloat(item.price);
+                
+                html += `
+                    <div class="popup-recommended-item">
+                        ${item.image ? `<img src="${item.image}" class="popup-item-image" alt="${item.name}">` : `<div class="popup-item-image" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 30px;">🍽️</div>`}
+                        <div class="popup-item-info">
+                            <div class="popup-item-name">${item.name}</div>
+                            <div class="popup-item-price">$${displayPrice.toFixed(2)}</div>
+                        </div>
+                        <button class="popup-add-btn" onclick='quickAddToCart(${JSON.stringify(item).replace(/'/g, "&#39;")}, this)'>
+                            + Add
+                        </button>
+                    </div>
+                `;
+            });
+            
+            grid.innerHTML = html;
+        }
+        
+        function quickAddToCart(item, buttonElement) {
+            const itemPrice = (item.discounted_price && parseFloat(item.discounted_price) > 0) 
+                ? parseFloat(item.discounted_price) 
+                : parseFloat(item.price);
+            
+            const uniqueId = item.id + '_' + Date.now() + '_' + Math.random();
+            
+            cart.push({
+                uniqueId: uniqueId,
+                id: item.id,
+                name: item.name,
+                price: itemPrice,
+                original_price: parseFloat(item.price),
+                discounted_price: item.discounted_price,
+                quantity: 1,
+                selectedOptions: []
+            });
+            
+            updateCart();
+            
+            // Visual feedback
+            buttonElement.textContent = '✓ Added';
+            buttonElement.classList.add('added');
+            buttonElement.disabled = true;
+        }
+        
+        function closeAddToCartPopup() {
+            document.getElementById('addToCartPopup').classList.remove('active');
+        }
+        
+        // Close popup when clicking outside
+        document.addEventListener('click', function(e) {
+            const popup = document.getElementById('addToCartPopup');
+            if (e.target === popup) {
+                closeAddToCartPopup();
+            }
+        });
+
+        function renderRecommendedItems(items) {
+            const container = document.getElementById('recommendedItems');
+            const section = document.getElementById('recommendedSection');
+            
+            if (!items || items.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            let html = '';
+            items.forEach(item => {
+                const displayPrice = (item.discounted_price && parseFloat(item.discounted_price) > 0) 
+                    ? parseFloat(item.discounted_price) 
+                    : parseFloat(item.price);
+                
+                html += `
+                    <div class="recommended-item-card" onclick='openItemModal(${JSON.stringify(item).replace(/'/g, "&#39;")})'>
+                        ${item.image ? `<img src="${item.image}" class="recommended-item-image" alt="${item.name}">` : `<div class="recommended-item-image" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 40px;">🍽️</div>`}
+                        <div class="recommended-item-info">
+                            <div class="recommended-item-name">${item.name}</div>
+                            <div class="recommended-item-price">$${displayPrice.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            section.style.display = 'block';
+        }
+
         window.addItemToCart = function() {
             if (!currentItem) return;
             
@@ -1764,8 +2472,15 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
             });
             
             updateCart();
-            showNotification('Added to cart: ' + currentItem.name, 'success');
+            const itemId = currentItem.id; // Önce ID'yi kaydet
             closeItemModal();
+            
+            // Show popup only if enabled
+            if (recommendationsEnabled && showPopupRecommendations) {
+                showAddToCartPopup(itemId);
+            } else {
+                showNotification('Added to cart!', 'success');
+            }
         }
         
         window.removeFromCart = function(uniqueId) {
@@ -2447,13 +3162,24 @@ $table_number = isset($_GET['table']) ? sanitize_text_field($_GET['table']) : ''
                     currentOrderId = data.data.order_id;
                     localStorage.setItem('currentOrderId_' + tableNumber, currentOrderId);
                     
-                    // Show success message
-                    document.getElementById('cartSummaryItems').style.display = 'none';
-                    document.getElementById('cartSummaryFooter').style.display = 'none';
-                    document.getElementById('cartSummaryCheckout').style.display = 'none';
-                    document.getElementById('cartSummarySuccess').style.display = 'block';
+                    // Close cart summary
+                    hideCartSummary();
                     
-                    showNotification('Order placed successfully!', 'success');
+                    // Show animated success overlay
+                    showOrderSuccess({
+                        order_id: data.data.order_id,
+                        table_number: tableNumber,
+                        total_price: total
+                    });
+                    
+                    // Reset cart
+                    cart = [];
+                    updateCart();
+                    
+                    // Clear form
+                    document.getElementById('cartSummaryName').value = '';
+                    document.getElementById('cartSummaryNotes').value = '';
+                    
                     startOrderTracking();
                 } else {
                     alert('Failed to submit order. Please try again.');

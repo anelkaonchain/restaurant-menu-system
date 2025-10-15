@@ -20,7 +20,8 @@ function AdminApp() {
         discounted_price: '',
         allergens: '',
         category: '',
-        image: ''
+        image: '',
+        relatedItems: ''
     });
     const [message, setMessage] = useState({ type: '', text: '' });
 
@@ -103,6 +104,7 @@ function AdminApp() {
         formDataObj.append('category', formData.category);
         formDataObj.append('image', formData.image);
         if (editingId) {
+            formDataObj.append('related_items', formData.relatedItems);
             formDataObj.append('id', editingId);
         }
 
@@ -116,7 +118,7 @@ function AdminApp() {
             if (data.success) {
                 setMessage({ type: 'success', text: 'Menu item saved successfully!' });
                 setShowForm(false);
-                setFormData({ name: '', description: '', price: '', discounted_price: '', allergens: '', category: '', image: '' });
+                setFormData({ name: '', description: '', price: '', discounted_price: '', allergens: '', category: '', image: '', relatedItems: '' });
                 setEditingId(null);
                 await loadItems();
             } else {
@@ -138,7 +140,8 @@ function AdminApp() {
             discounted_price: item.discounted_price || '',
             allergens: item.allergens || '',
             category: item.category || '',
-            image: item.image || ''
+            image: item.image || '',
+            relatedItems: item.related_items || ''
         });
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -176,7 +179,7 @@ function AdminApp() {
     const handleCancel = () => {
         setShowForm(false);
         setEditingId(null);
-        setFormData({ name: '', description: '', price: '', discounted_price: '', allergens: '', category: '', image: '' });
+        setFormData({ name: '', description: '', price: '', discounted_price: '', allergens: '', category: '', image: '', relatedItems: '' });
     };
     
     const handleImageUpload = async (e) => {
@@ -356,6 +359,37 @@ function AdminApp() {
                             placeholder="e.g., Gluten, Dairy, Nuts"
                             style={{ width: '100%', padding: '8px' }}
                         />
+                    </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                            🎁 Recommended Products
+                        </label>
+                        <select
+                            multiple
+                            value={formData.relatedItems ? formData.relatedItems.split(',').filter(id => id) : []}
+                            onChange={(e) => {
+                                const selected = Array.from(e.target.selectedOptions, option => option.value);
+                                setFormData({...formData, relatedItems: selected.join(',')});
+                            }}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                border: '2px solid #E9ECEF',
+                                borderRadius: '8px',
+                                fontSize: '15px',
+                                minHeight: '120px'
+                            }}
+                        >
+                            {items.filter(item => item.id !== editingId).map(item => (
+                                <option key={item.id} value={item.id}>
+                                    {item.name} - ${item.price}
+                                </option>
+                            ))}
+                        </select>
+                        <div style={{ fontSize: '12px', color: '#6C757D', marginTop: '5px' }}>
+                            💡 Hold Ctrl (Cmd on Mac) to select multiple items. These will be shown as "Frequently bought together"
+                        </div>
                     </div>
 
                     <div style={{ marginBottom: '20px' }}>
